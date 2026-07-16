@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Muqri — Random Qira'at Radio</title>
+<meta name="theme-color" content="#0E1A1C">
+<link rel="manifest" href='data:application/manifest+json,{"name":"Muqri Radio","short_name":"Muqri","start_url":".","display":"standalone","background_color":"%230E1A1C","theme_color":"%230E1A1C"}'>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Cormorant+Garamond:ital,wght@0,500;1,500&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-0:#0B1517;
+    --bg-1:#0E1A1C;
+    --panel:#132225;
+    --panel-2:#182C30;
+    --line:rgba(201,162,75,0.22);
+    --gold:#C9A24B;
+    --gold-soft:rgba(201,162,75,0.35);
+    --parchment:#EDE6D6;
+    --muted:#8FA6A3;
+    --danger:#D07A6B;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    min-height:100dvh;
+    background:
+      radial-gradient(1200px 800px at 50% -10%, #14282B 0%, var(--bg-1) 55%, var(--bg-0) 100%);
+    color:var(--parchment);
+    font-family:'Work Sans', system-ui, -apple-system, sans-serif;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:flex-start;
+    padding:env(safe-area-inset-top) 18px calc(env(safe-area-inset-bottom) + 18px);
+    overflow-x:hidden;
+  }
+
+  .brandbar{
+    width:100%;
+    max-width:440px;
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    padding:22px 4px 6px;
+  }
+  .brandbar .name{
+    font-family:'Cormorant Garamond', serif;
+    font-style:italic;
+    font-size:22px;
+    letter-spacing:0.5px;
+    color:var(--gold);
+  }
+  .brandbar .tag{
+    font-size:11px;
+    letter-spacing:1.5px;
+    text-transform:uppercase;
+    color:var(--muted);
+  }
+
+  .stage{
+    position:relative;
+    width:100%;
+    max-width:440px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    margin-top:18px;
+  }
+
+  .rosette{
+    position:absolute;
+    width:340px;
+    height:340px;
+    opacity:0.16;
+    animation:spin 220s linear infinite;
+    pointer-events:none;
+  }
+  .rosette.breathe{
+    animation:spin 220s linear infinite, breathe 4.5s ease-in-out infinite alternate;
+  }
+  @keyframes spin{ from{transform:rotate(0deg);} to{transform:rotate(360deg);} }
+  @keyframes breathe{ from{opacity:0.14; transform:scale(1) rotate(0deg);} to{opacity:0.30; transform:scale(1.04) rotate(0deg);} }
+
+  .card{
+    position:relative;
+    width:100%;
+    background:linear-gradient(180deg, var(--panel-2), var(--panel));
+    border:1px solid var(--line);
+    border-radius:22px;
+    padding:34px 26px 26px;
+    box-shadow:0 30px 60px -30px rgba(0,0,0,0.6);
+    backdrop-filter:blur(6px);
+  }
+
+  .eyebrow{
+    font-size:11px;
+    letter-spacing:2px;
+    text-transform:uppercase;
+    color:var(--muted);
+    text-align:center;
+    margin-bottom:14px;
+    min-height:14px;
+  }
+  .eyebrow.loading{ color:var(--gold); }
+
+  .surah{
+    font-family:'Amiri', serif;
+    direction:rtl;
+    text-align:center;
+    font-size:40px;
+    line-height:1.25;
+    color:var(--parchment);
+    min-height:52px;
+  }
+  .surah-meta{
+    text-align:center;
+    font-size:12.5px;
+    color:var(--muted);
+    margin-top:4px;
+    letter-spacing:0.4px;
+  }
+
+  .divider{
+    height:1px;
+    background:var(--line);
+    margin:20px 0 16px;
+  }
+
+  .reciter{
+    font-family:'Amiri', serif;
+    direction:rtl;
+    text-align:center;
+    font-size:24px;
+    color:var(--gold);
+    min-height:30px;
+  }
+
+  .riwayah-pill{
+    display:block;
+    text-align:center;
+    margin:10px auto 0;
+    font-size:12px;
+    color:var(--parchment);
+    letter-spacing:0.3px;
+  }
+  .riwayah-pill span{
+    display:inline-block;
+    padding:6px 14px;
+    border:1px solid var(--gold-soft);
+    border-radius:100px;
+    background:rgba(201,162,75,0.06);
+  }
+
+  .progress{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-top:26px;
+  }
+  .time{
+    font-size:11px;
+    color:var(--muted);
+    min-width:34px;
+    text-align:center;
+    font-variant-numeric:tabular-nums;
+  }
+  .bar{
+    flex:1;
+    height:3px;
+    background:rgba(255,255,255,0.08);
+    border-radius:4px;
+    overflow:hidden;
+  }
+  .bar-fill{
+    height:100%;
+    width:0%;
+    background:var(--gold);
+  }
+
+  .controls{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:22px;
+    margin-top:26px;
+  }
+  .icon-btn{
+    -webkit-tap-highlight-color:transparent;
+    border:none;
+    background:none;
+    color:var(--parchment);
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:8px;
+  }
+  .icon-btn svg{ display:block; }
+  .play-toggle{
+    width:64px;
+    height:64px;
+    border-radius:50%;
+    border:1px solid var(--gold-soft);
+    background:rgba(201,162,75,0.08);
+    color:var(--gold);
+  }
+  .play-toggle:active{ background:rgba(201,162,75,0.18); }
+  .skip-btn{ color:var(--muted); }
+  .skip-btn:active{ color:var(--gold); }
+
+  .volume-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-top:24px;
+    opacity:0.8;
+  }
+  .volume-row span{ font-size:11px; color:var(--muted); letter-spacing:0.5px; }
+  input[type=range]{
+    -webkit-appearance:none;
+    flex:1;
+    height:3px;
+    background:rgba(255,255,255,0.1);
+    border-radius:4px;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;
+    width:12px;height:12px;border-radius:50%;
+    background:var(--gold);
+    cursor:pointer;
+  }
+
+  .status{
+    text-align:center;
+    font-size:12px;
+    color:var(--danger);
+    margin-top:16px;
+    min-height:16px;
+  }
+
+  .about{
+    width:100%;
+    max-width:440px;
+    margin-top:22px;
+    color:var(--muted);
+    font-size:12.5px;
+    line-height:1.6;
+  }
+  .about summary{
+    cursor:pointer;
+    color:var(--gold);
+    letter-spacing:0.3px;
+    padding:6px 2px;
+  }
+  .about p{ margin:10px 2px 4px; }
+
+  .overlay{
+    position:fixed;
+    inset:0;
+    background:radial-gradient(1200px 800px at 50% 10%, #16282B 0%, var(--bg-1) 60%, var(--bg-0) 100%);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-direction:column;
+    text-align:center;
+    padding:32px;
+    z-index:10;
+  }
+  .overlay .name{
+    font-family:'Amiri', serif;
+    font-size:44px;
+    color:var(--gold);
+    margin-bottom:6px;
+  }
+  .overlay .sub{
+    font-family:'Cormorant Garamond', serif;
+    font-style:italic;
+    color:var(--muted);
+    font-size:16px;
+    max-width:320px;
+    margin-bottom:34px;
+    line-height:1.5;
+  }
+  .start-btn{
+    -webkit-tap-highlight-color:transparent;
+    border:1px solid var(--gold-soft);
+    background:rgba(201,162,75,0.08);
+    color:var(--gold);
+    font-family:'Work Sans', sans-serif;
+    font-size:13px;
+    letter-spacing:1.5px;
+    text-transform:uppercase;
+    padding:16px 34px;
+    border-radius:100px;
+    cursor:pointer;
+  }
+  .start-btn:active{ background:rgba(201,162,75,0.2); }
+  .overlay .hint{
+    margin-top:20px;
+    font-size:11px;
+    color:var(--muted);
+    max-width:280px;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .rosette, .rosette.breathe{ animation:none; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="brandbar">
+    <div class="name">Muqri</div>
+    <div class="tag">Random Qira'at Radio</div>
+  </div>
+
+  <div class="stage">
+    <svg class="rosette" id="rosette" viewBox="0 0 200 200">
+      <g fill="none" stroke="#C9A24B" stroke-width="0.6">
+        <polygon points="100,10 122,70 185,70 133,108 152,170 100,132 48,170 67,108 15,70 78,70"/>
+        <circle cx="100" cy="100" r="90"/>
+        <circle cx="100" cy="100" r="60"/>
+      </g>
+    </svg>
+
+    <div class="card">
+      <div class="eyebrow" id="eyebrow">NOW RECITING</div>
+      <div class="surah" id="surahName">—</div>
+      <div class="surah-meta" id="surahMeta">&nbsp;</div>
+
+      <div class="divider"></div>
+
+      <div class="reciter" id="reciterName">—</div>
+      <div class="riwayah-pill"><span id="riwayahName">—</span></div>
+
+      <div class="progress">
+        <div class="time" id="timeElapsed">0:00</div>
+        <div class="bar"><div class="bar-fill" id="barFill"></div></div>
+        <div class="time" id="timeTotal">0:00</div>
+      </div>
+
+      <div class="controls">
+        <button class="icon-btn play-toggle" id="playBtn" aria-label="Play">
+          <svg id="playIcon" width="22" height="22" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
+        </button>
+        <button class="icon-btn skip-btn" id="skipBtn" aria-label="Skip to a new random reciter and qira'ah">
+          <svg width="22" height="22" viewBox="0 0 24 24"><path d="M6 5l10 7-10 7V5zM18 5v14h2V5h-2z" fill="currentColor"/></svg>
+        </button>
+      </div>
+
+      <div class="volume-row">
+        <span>VOL</span>
+        <input type="range" id="volume" min="0" max="1" step="0.01" value="1">
+      </div>
+
+      <div class="status" id="status">&nbsp;</div>
+    </div>
+  </div>
+
+  <details class="about">
+    <summary>About this stream</summary>
+    <p>Each track picks a random riwayah (a canonically transmitted reading of the Qur'an, such as Hafs 'an 'Asim or Warsh 'an Nafi') and then a random reciter who has recorded that riwayah, streaming directly from mp3quran.net's public library. When a surah ends, it automatically moves on to a new random combination.</p>
+    <p>Tip: open this page in your phone's browser (not inside a chat preview) and use "Add to Home Screen" so it behaves like an app and keeps playing with your screen locked.</p>
+  </details>
+
+  <audio id="audio" preload="auto"></audio>
+
+<script>
+(function(){
+  const API = 'https://mp3quran.net/api/v3';
+
+  // Canonical riwayat (qira'at) pool. Excludes ids 21/22, which are recitation
+  // styles (mu'allim / mujawwad) rather than distinct qira'at transmissions.
+  const RIWAYAH_POOL = [1,2,3,4,5,6,7,8,9,10,11,12,13,15,16,18,19,20];
+  const RIWAYAH_EN = {
+    1:"Hafs 'an 'Asim", 2:"Warsh 'an Nafi'", 3:"Khalaf 'an Hamzah",
+    4:"Al-Bazzi 'an Ibn Kathir", 5:"Qalun 'an Nafi'", 6:"Qunbul 'an Ibn Kathir",
+    7:"Al-Susi 'an Abu Amr", 8:"Qalun 'an Nafi' (via Abi Nashit)",
+    9:"Ruways & Rawh 'an Ya'qub al-Hadrami", 10:"Warsh 'an Nafi' (via al-Asbahani)",
+    11:"Al-Bazzi & Qunbul 'an Ibn Kathir", 12:"Al-Duri 'an al-Kisa'i",
+    13:"Al-Duri 'an Abu Amr", 15:"Shu'bah 'an 'Asim", 16:"Ibn Dhakwan 'an Ibn 'Amir",
+    18:"Warsh 'an Nafi' (via al-Azraq)", 19:"Hisham 'an Ibn 'Amir",
+    20:"Ibn Jammaz 'an Abu Ja'far"
+  };
+
+  const els = {
+    surahName: document.getElementById('surahName'),
+    surahMeta: document.getElementById('surahMeta'),
+    reciterName: document.getElementById('reciterName'),
+    riwayahName: document.getElementById('riwayahName'),
+    eyebrow: document.getElementById('eyebrow'),
+    status: document.getElementById('status'),
+    playBtn: document.getElementById('playBtn'),
+    playIcon: document.getElementById('playIcon'),
+    skipBtn: document.getElementById('skipBtn'),
+    barFill: document.getElementById('barFill'),
+    timeElapsed: document.getElementById('timeElapsed'),
+    timeTotal: document.getElementById('timeTotal'),
+    volume: document.getElementById('volume'),
+    audio: document.getElementById('audio'),
+    rosette: document.getElementById('rosette')
+  };
+
+  const PAUSE_ICON = '<path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/>';
+  const PLAY_ICON = '<path d="M8 5v14l11-7z" fill="currentColor"/>';
+
+  let recitersCache = {};   // riwayahId -> reciters array
+  let suwarMap = {};        // surahId -> {ar, en}
+  let riwayahArMap = {};    // riwayahId -> arabic name
+  let nextTrack = null;
+  let loadingNext = false;
+  let errorStreak = 0;
+  let started = false;
+
+  function pad3(n){ return String(n).padStart(3,'0'); }
+  function fmtTime(s){
+    if(!isFinite(s) || s < 0) return '0:00';
+    const m = Math.floor(s/60), sec = Math.floor(s%60);
+    return m + ':' + String(sec).padStart(2,'0');
+  }
+  function setStatus(msg){ els.status.textContent = msg || '\u00A0'; }
+  function setEyebrow(text, loading){
+    els.eyebrow.textContent = text;
+    els.eyebrow.classList.toggle('loading', !!loading);
+  }
+
+  // mp3quran.net doesn't reliably send CORS headers for direct browser fetches
+  // from a different origin. Try direct first; if the browser blocks it, fall
+  // back to a public CORS relay so the request still goes through.
+  const CORS_PROXIES = [
+    url => url,
+    url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
+    url => 'https://corsproxy.io/?url=' + encodeURIComponent(url)
+  ];
+
+  async function fetchJSON(url){
+    let lastErr;
+    for(const wrap of CORS_PROXIES){
+      try{
+        const r = await fetch(wrap(url), { cache: 'no-store' });
+        if(!r.ok) throw new Error('bad status ' + r.status);
+        return await r.json();
+      }catch(e){
+        lastErr = e;
+      }
+    }
+    throw lastErr;
+  }
+
+  async function loadMeta(){
+    const [suwarAr, suwarEn, riwayahAr] = await Promise.all([
+      fetchJSON(API + '/suwar?language=ar'),
+      fetchJSON(API + '/suwar?language=eng'),
+      fetchJSON(API + '/riwayat?language=ar')
+    ]);
+    suwarAr.suwar.forEach(s => { suwarMap[s.id] = { ar: s.name.trim() }; });
+    suwarEn.suwar.forEach(s => { if(suwarMap[s.id]) suwarMap[s.id].en = s.name.trim(); });
+    riwayahAr.riwayat.forEach(r => { riwayahArMap[r.id] = r.name; });
+  }
+
+  async function getReciters(riwayahId){
+    if(recitersCache[riwayahId]) return recitersCache[riwayahId];
+    const data = await fetchJSON(API + '/reciters?language=ar&rewaya=' + riwayahId);
+    const list = (data.reciters || []).filter(r => r.moshaf && r.moshaf.length);
+    recitersCache[riwayahId] = list;
+    return list;
+  }
+
+  function pickRandom(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+  async function fetchTrackCandidate(){
+    const attempts = 8;
+    for(let i=0;i<attempts;i++){
+      try{
+        const riwayahId = pickRandom(RIWAYAH_POOL);
+        const reciters = await getReciters(riwayahId);
+        if(!reciters.length) continue;
+        const reciter = pickRandom(reciters);
+        const moshaf = pickRandom(reciter.moshaf);
+        const ids = (moshaf.surah_list || '').split(',').map(s=>s.trim()).filter(Boolean).map(Number);
+        if(!ids.length) continue;
+        const surahId = pickRandom(ids);
+        const surahInfo = suwarMap[surahId] || { ar: 'سورة ' + surahId, en: 'Surah ' + surahId };
+        const server = moshaf.server.endsWith('/') ? moshaf.server : moshaf.server + '/';
+        return {
+          reciterAr: reciter.name,
+          riwayahId,
+          riwayahAr: riwayahArMap[riwayahId] || '',
+          riwayahEn: RIWAYAH_EN[riwayahId] || '',
+          surahId,
+          surahAr: surahInfo.ar,
+          surahEn: surahInfo.en,
+          audioUrl: server + pad3(surahId) + '.mp3'
+        };
+      } catch(e){
+        // network hiccup on this attempt, try another combination
+        continue;
+      }
+    }
+    return null;
+  }
+
+  async function ensureNext(){
+    if(nextTrack || loadingNext) return;
+    loadingNext = true;
+    const t = await fetchTrackCandidate();
+    loadingNext = false;
+    if(t) nextTrack = t;
+  }
+
+  function updateMediaSession(track){
+    if(!('mediaSession' in navigator)) return;
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: track.surahEn + ' \u2014 ' + track.surahAr,
+      artist: track.reciterAr,
+      album: track.riwayahEn
+    });
+    navigator.mediaSession.setActionHandler('play', () => els.audio.play());
+    navigator.mediaSession.setActionHandler('pause', () => els.audio.pause());
+    navigator.mediaSession.setActionHandler('nexttrack', () => skip());
+  }
+
+  function renderTrack(track){
+    els.surahName.textContent = track.surahAr;
+    els.surahMeta.textContent = track.surahEn + ' \u00B7 Surah ' + track.surahId;
+    els.reciterName.textContent = track.reciterAr;
+    els.riwayahName.textContent = track.riwayahEn + (track.riwayahAr ? '  \u00B7  ' + track.riwayahAr : '');
+    setEyebrow('NOW RECITING', false);
+    setStatus('');
+  }
+
+  async function playTrack(track){
+    renderTrack(track);
+    els.audio.src = track.audioUrl;
+    try{
+      await els.audio.play();
+      errorStreak = 0;
+      updateMediaSession(track);
+    }catch(e){
+      // autoplay blocked or stream failed; user can hit play manually
+    }
+    ensureNext();
+  }
+
+  async function advance(){
+    setEyebrow('FINDING NEXT RECITATION\u2026', true);
+    if(nextTrack){
+      const t = nextTrack;
+      nextTrack = null;
+      await playTrack(t);
+    } else {
+      const t = await fetchTrackCandidate();
+      if(t){
+        await playTrack(t);
+      } else {
+        errorStreak++;
+        setEyebrow('CONNECTION TROUBLE', false);
+        setStatus(errorStreak >= 3
+          ? 'Could not reach the recitation library. Check your connection and tap Skip to retry.'
+          : 'Having trouble finding a track. Tap Skip to retry.');
+      }
+    }
+  }
+
+  function skip(){
+    setStatus('');
+    advance();
+  }
+
+  els.audio.addEventListener('ended', advance);
+  els.audio.addEventListener('error', () => {
+    errorStreak++;
+    if(errorStreak <= 5){
+      advance();
+    } else {
+      setEyebrow('CONNECTION TROUBLE', false);
+      setStatus('Several tracks failed to load. Tap Skip to try again.');
+    }
+  });
+  els.audio.addEventListener('timeupdate', () => {
+    const d = els.audio.duration;
+    if(isFinite(d) && d > 0){
+      els.barFill.style.width = (els.audio.currentTime / d * 100) + '%';
+      els.timeElapsed.textContent = fmtTime(els.audio.currentTime);
+      els.timeTotal.textContent = fmtTime(d);
+    }
+  });
+  els.audio.addEventListener('play', () => {
+    els.playIcon.innerHTML = PAUSE_ICON;
+    els.rosette.classList.add('breathe');
+    if('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+  });
+  els.audio.addEventListener('pause', () => {
+    els.playIcon.innerHTML = PLAY_ICON;
+    els.rosette.classList.remove('breathe');
+    if('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+  });
+
+  els.playBtn.addEventListener('click', () => {
+    if(els.audio.paused) els.audio.play(); else els.audio.pause();
+  });
+  els.skipBtn.addEventListener('click', skip);
+  els.volume.addEventListener('input', () => { els.audio.volume = Number(els.volume.value); });
+
+  async function start(){
+    if(started) return;
+    started = true;
+    document.getElementById('startOverlay').remove();
+    setEyebrow('TUNING IN\u2026', true);
+    try{
+      await loadMeta();
+    }catch(e){
+      setEyebrow('CONNECTION TROUBLE', false);
+      setStatus('Could not reach mp3quran.net. Check your connection and reload.');
+      return;
+    }
+    const t = await fetchTrackCandidate();
+    if(t){ await playTrack(t); }
+    else {
+      setEyebrow('CONNECTION TROUBLE', false);
+      setStatus('Could not find a track to play. Reload and try again.');
+    }
+  }
+
+  // Start overlay (audio requires a user gesture on mobile browsers)
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay';
+  overlay.id = 'startOverlay';
+  overlay.innerHTML =
+    '<div class="name">Muqri</div>' +
+    '<div class="sub">A random reciter, a random qira\'ah, every time. Tap to begin an endless stream.</div>' +
+    '<button class="start-btn" id="startBtn">Begin Listening</button>' +
+    '<div class="hint">Streams directly from mp3quran.net</div>';
+  document.body.appendChild(overlay);
+  document.getElementById('startBtn').addEventListener('click', start);
+
+})();
+</script>
+</body>
+</html>
