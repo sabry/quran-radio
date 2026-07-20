@@ -343,6 +343,9 @@
       </div>
 
       <div class="controls">
+        <button class="icon-btn skip-btn" id="rewindBtn" aria-label="Rewind 10 seconds">
+          <svg width="22" height="22" viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" fill="currentColor"/><text x="12" y="16.5" text-anchor="middle" font-size="7" font-family="sans-serif" fill="currentColor">10</text></svg>
+        </button>
         <button class="icon-btn play-toggle" id="playBtn" aria-label="Play">
           <svg id="playIcon" width="22" height="22" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
         </button>
@@ -363,6 +366,7 @@
   <details class="about">
     <summary>About this stream</summary>
     <p>Each track picks a random riwayah (a canonically transmitted reading of the Qur'an, such as Hafs 'an 'Asim or Warsh 'an Nafi') and then a random reciter who has recorded that riwayah, streaming directly from mp3quran.net's public library. When a surah ends, it automatically moves on to a new random combination.</p>
+    <p>Long surahs (over ~25 minutes) are automatically split into 15&ndash;20 minute parts, and each part joins the random rotation on its own, so no single track keeps the stream tied up for hours. If the connection drops mid-recitation, the player reconnects and resumes from where it left off.</p>
     <p>Tip: open this page in your phone's browser and use "Add to Home Screen" so it behaves like an app and keeps playing with your screen locked.</p>
   </details>
 
@@ -386,6 +390,12 @@
     20:"Ibn Jammaz 'an Abu Ja'far"
   };
 
+  // Chunking: surahs longer than CHUNK_MIN_DURATION are split into equal parts
+  // aiming for CHUNK_TARGET each (works out to roughly 13-20 min per part).
+  const CHUNK_MIN_DURATION = 25 * 60;
+  const CHUNK_TARGET = 17.5 * 60;
+  const REWIND_SECONDS = 10;
+
   const els = {
     surahName: document.getElementById('surahName'),
     surahMeta: document.getElementById('surahMeta'),
@@ -396,6 +406,7 @@
     playBtn: document.getElementById('playBtn'),
     playIcon: document.getElementById('playIcon'),
     skipBtn: document.getElementById('skipBtn'),
+    rewindBtn: document.getElementById('rewindBtn'),
     barFill: document.getElementById('barFill'),
     timeElapsed: document.getElementById('timeElapsed'),
     timeTotal: document.getElementById('timeTotal'),
@@ -414,6 +425,13 @@
   let loadingNext = false;
   let errorStreak = 0;
   let started = false;
+  let advancing = false;
+  let lastPos = 0;          // last known playback position, for reconnects
+
+  // Current playback state: track + (possibly) an assigned chunk of it.
+  // cur = { track, chunkAssigned, chunked, chunkIndex, numChunks,
+  //         chunkStart, chunkEnd, recoveries, resumeAt }
+  let cur = null;
 
   function pad3(n){ return String(n).padStart(3,'0'); }
   function fmtTime(s){
@@ -421,7 +439,7 @@
     const m = Math.floor(s/60), sec = Math.floor(s%60);
     return m + ':' + String(sec).padStart(2,'0');
   }
-  function setStatus(msg){ els.status.textContent = msg || '\u00A0'; }
+  function setStatus(msg){ els.status.textContent = msg || ' '; }
   function setEyebrow(text, loading){
     els.eyebrow.textContent = text;
     els.eyebrow.classList.toggle('loading', !!loading);
@@ -511,28 +529,58 @@
     if(t) nextTrack = t;
   }
 
+  function partLabel(){
+    return (cur && cur.chunked)
+      ? ' (Part ' + (cur.chunkIndex + 1) + '/' + cur.numChunks + ')'
+      : '';
+  }
+
   function updateMediaSession(track){
     if(!('mediaSession' in navigator)) return;
     navigator.mediaSession.metadata = new MediaMetadata({
-      title: track.surahEn + ' \u2014 ' + track.surahAr,
+      title: track.surahEn + partLabel() + ' — ' + track.surahAr,
       artist: track.reciterAr,
       album: track.riwayahEn
     });
     navigator.mediaSession.setActionHandler('play', () => els.audio.play());
     navigator.mediaSession.setActionHandler('pause', () => els.audio.pause());
     navigator.mediaSession.setActionHandler('nexttrack', () => skip());
+    try{
+      navigator.mediaSession.setActionHandler('seekbackward', () => rewind());
+    }catch(e){}
   }
 
   function renderTrack(track){
     els.surahName.textContent = track.surahAr;
-    els.surahMeta.textContent = track.surahEn + ' \u00B7 Surah ' + track.surahId;
+    els.surahMeta.textContent = track.surahEn + ' · Surah ' + track.surahId;
     els.reciterName.textContent = track.reciterAr;
-    els.riwayahName.textContent = track.riwayahEn + (track.riwayahAr ? '  \u00B7  ' + track.riwayahAr : '');
+    els.riwayahName.textContent = track.riwayahEn + (track.riwayahAr ? '  ·  ' + track.riwayahAr : '');
     setEyebrow('NOW RECITING', false);
     setStatus('');
   }
 
+  function renderChunkMeta(){
+    if(!cur) return;
+    const t = cur.track;
+    let meta = t.surahEn + ' · Surah ' + t.surahId;
+    if(cur.chunked) meta += ' · Part ' + (cur.chunkIndex + 1) + ' of ' + cur.numChunks;
+    els.surahMeta.textContent = meta;
+    if(cur.chunked) updateMediaSession(t); // refresh title with part info
+  }
+
   async function playTrack(track){
+    cur = {
+      track,
+      chunkAssigned: false,
+      chunked: false,
+      chunkIndex: 0,
+      numChunks: 1,
+      chunkStart: 0,
+      chunkEnd: Infinity,
+      recoveries: 0,
+      resumeAt: null
+    };
+    lastPos = 0;
     renderTrack(track);
     els.audio.src = track.audioUrl;
     try{
@@ -546,7 +594,7 @@
   }
 
   async function advance(){
-    setEyebrow('FINDING NEXT RECITATION\u2026', true);
+    setEyebrow('FINDING NEXT RECITATION…', true);
     if(nextTrack){
       const t = nextTrack;
       nextTrack = null;
@@ -570,8 +618,60 @@
     advance();
   }
 
+  function rewind(){
+    const floor = (cur && cur.chunked) ? cur.chunkStart : 0;
+    els.audio.currentTime = Math.max(floor, els.audio.currentTime - REWIND_SECONDS);
+  }
+
+  // Once the mp3's duration is known, decide whether this surah gets chunked
+  // and pick a random part. Each part is its own entry in the random rotation.
+  els.audio.addEventListener('loadedmetadata', () => {
+    if(!cur) return;
+    const d = els.audio.duration;
+    if(cur.resumeAt != null){
+      // reconnect after a dropped connection: jump back to where we were
+      const t = Math.max(0, Math.min(cur.resumeAt, isFinite(d) ? d - 1 : cur.resumeAt));
+      cur.resumeAt = null;
+      els.audio.currentTime = t;
+      return;
+    }
+    if(!cur.chunkAssigned){
+      cur.chunkAssigned = true;
+      if(isFinite(d) && d > CHUNK_MIN_DURATION){
+        const n = Math.max(2, Math.round(d / CHUNK_TARGET));
+        const len = d / n;
+        const idx = Math.floor(Math.random() * n);
+        cur.chunked = true;
+        cur.numChunks = n;
+        cur.chunkIndex = idx;
+        cur.chunkStart = idx * len;
+        cur.chunkEnd = (idx + 1) * len;
+        if(idx > 0) els.audio.currentTime = cur.chunkStart;
+      } else {
+        cur.chunkEnd = isFinite(d) ? d : Infinity;
+      }
+      renderChunkMeta();
+    } else if(cur.chunked && els.audio.currentTime < cur.chunkStart - 1){
+      els.audio.currentTime = cur.chunkStart;
+    }
+  });
+
   els.audio.addEventListener('ended', advance);
+
   els.audio.addEventListener('error', () => {
+    // If we were mid-recitation, the connection likely dropped (e.g. after a
+    // long pause). Reload the stream and resume from where we stopped instead
+    // of jumping to a different track.
+    if(cur && lastPos > 3 && cur.recoveries < 2){
+      cur.recoveries++;
+      cur.resumeAt = lastPos;
+      setEyebrow('RECONNECTING…', true);
+      els.audio.src = cur.track.audioUrl;
+      els.audio.play()
+        .then(() => setEyebrow('NOW RECITING', false))
+        .catch(() => {});
+      return;
+    }
     errorStreak++;
     if(errorStreak <= 5){
       advance();
@@ -580,14 +680,26 @@
       setStatus('Several tracks failed to load. Tap Skip to try again.');
     }
   });
+
   els.audio.addEventListener('timeupdate', () => {
     const d = els.audio.duration;
-    if(isFinite(d) && d > 0){
-      els.barFill.style.width = (els.audio.currentTime / d * 100) + '%';
-      els.timeElapsed.textContent = fmtTime(els.audio.currentTime);
-      els.timeTotal.textContent = fmtTime(d);
+    if(!isFinite(d) || d <= 0) return;
+    lastPos = els.audio.currentTime;
+    const start = (cur && cur.chunked) ? cur.chunkStart : 0;
+    const end = (cur && cur.chunked) ? Math.min(cur.chunkEnd, d) : d;
+    const span = Math.max(end - start, 0.01);
+    const rel = Math.min(Math.max(els.audio.currentTime - start, 0), span);
+    els.barFill.style.width = (rel / span * 100) + '%';
+    els.timeElapsed.textContent = fmtTime(rel);
+    els.timeTotal.textContent = fmtTime(span);
+    // End of a middle chunk: move on to the next random selection.
+    if(cur && cur.chunked && cur.chunkIndex < cur.numChunks - 1
+       && els.audio.currentTime >= cur.chunkEnd - 0.3 && !advancing){
+      advancing = true;
+      advance().finally(() => { advancing = false; });
     }
   });
+
   els.audio.addEventListener('play', () => {
     els.playIcon.innerHTML = PAUSE_ICON;
     els.rosette.classList.add('breathe');
@@ -603,13 +715,14 @@
     if(els.audio.paused) els.audio.play(); else els.audio.pause();
   });
   els.skipBtn.addEventListener('click', skip);
+  els.rewindBtn.addEventListener('click', rewind);
   els.volume.addEventListener('input', () => { els.audio.volume = Number(els.volume.value); });
 
   async function start(){
     if(started) return;
     started = true;
     document.getElementById('startOverlay').remove();
-    setEyebrow('TUNING IN\u2026', true);
+    setEyebrow('TUNING IN…', true);
     try{
       await loadMeta();
     }catch(e){
