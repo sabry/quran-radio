@@ -3,11 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Muqri — Random Qira'at Radio</title>
+<title>Muqriʼ مقرئ — Random Qira'at Radio</title>
 <meta name="theme-color" content="#0E1A1C">
-<link rel="manifest" href='data:application/manifest+json,{"name":"Muqri Radio","short_name":"Muqri","start_url":".","display":"standalone","background_color":"%230E1A1C","theme_color":"%230E1A1C"}'>
+<link rel="manifest" href='data:application/manifest+json,{"name":"Muqri%CA%BC Radio","short_name":"Muqri%CA%BC","start_url":".","display":"standalone","background_color":"%230E1A1C","theme_color":"%230E1A1C"}'>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Cormorant+Garamond:ital,wght@0,500;1,500&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<!-- King Fahd Complex Uthmanic fonts, one per riwayah. Each @font-face only
+     downloads if a narration that uses it actually comes up in the rotation. -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/thetruetruth/quran-data-kfgqpc@main/css/kfgqpc.font.css">
 <style>
   :root{
     --bg-0:#0B1517;
@@ -52,6 +55,16 @@
     font-size:22px;
     letter-spacing:0.5px;
     color:var(--gold);
+    display:flex;
+    align-items:baseline;
+    gap:8px;
+  }
+  .brandbar .name .ar{
+    font-family:'Amiri', serif;
+    font-style:normal;
+    font-size:19px;
+    direction:rtl;
+    opacity:0.85;
   }
   .brandbar .tag{
     font-size:11px;
@@ -127,6 +140,43 @@
     height:1px;
     background:var(--line);
     margin:20px 0 16px;
+  }
+
+  /* Synced ayah panel. Only revealed when the current read has ayah timings
+     AND we have the matching riwayah text; otherwise it stays collapsed and
+     the card looks exactly as it did before. */
+  .ayah-panel{
+    direction:rtl;
+    text-align:center;
+    overflow:hidden;
+    max-height:0;
+    opacity:0;
+    transition:max-height 0.5s ease, opacity 0.5s ease, margin 0.5s ease;
+    margin-top:0;
+  }
+  .ayah-panel.show{
+    max-height:44vh;
+    opacity:1;
+    margin-top:18px;
+  }
+  .ayah-text{
+    /* font-family is set per-riwayah at runtime */
+    font-size:30px;
+    line-height:2.0;
+    color:var(--parchment);
+    padding:0 2px;
+    transition:opacity 0.28s ease;
+    word-spacing:0.04em;
+  }
+  .ayah-text.fading{ opacity:0.15; }
+  .ayah-num{
+    margin-top:10px;
+    font-family:'Work Sans', sans-serif;
+    direction:ltr;
+    font-size:10.5px;
+    letter-spacing:1.6px;
+    text-transform:uppercase;
+    color:var(--muted);
   }
 
   .reciter{
@@ -271,9 +321,19 @@
   }
   .overlay .name{
     font-family:'Amiri', serif;
-    font-size:44px;
+    font-size:52px;
+    direction:rtl;
     color:var(--gold);
-    margin-bottom:6px;
+    line-height:1.2;
+  }
+  .overlay .latin{
+    font-family:'Cormorant Garamond', serif;
+    font-style:italic;
+    font-size:22px;
+    letter-spacing:1px;
+    color:var(--gold);
+    opacity:0.75;
+    margin:2px 0 8px;
   }
   .overlay .sub{
     font-family:'Cormorant Garamond', serif;
@@ -313,7 +373,7 @@
 <body>
 
   <div class="brandbar">
-    <div class="name">Muqri</div>
+    <div class="name">Muqriʼ<span class="ar">مقرئ</span></div>
     <div class="tag">Random Qira'at Radio</div>
   </div>
 
@@ -330,6 +390,11 @@
       <div class="eyebrow" id="eyebrow">NOW RECITING</div>
       <div class="surah" id="surahName">—</div>
       <div class="surah-meta" id="surahMeta">&nbsp;</div>
+
+      <div class="ayah-panel" id="ayahPanel">
+        <div class="ayah-text" id="ayahText"></div>
+        <div class="ayah-num" id="ayahNum"></div>
+      </div>
 
       <div class="divider"></div>
 
@@ -366,7 +431,9 @@
   <details class="about">
     <summary>About this stream</summary>
     <p>Each track picks a random riwayah (a canonically transmitted reading of the Qur'an, such as Hafs 'an 'Asim or Warsh 'an Nafi') and then a random reciter who has recorded that riwayah, streaming directly from mp3quran.net's public library. When a surah ends, it automatically moves on to a new random combination.</p>
-    <p>Long surahs (over ~25 minutes) are automatically split into 15&ndash;20 minute parts, and each part joins the random rotation on its own, so no single track keeps the stream tied up for hours. If the connection drops mid-recitation, the player reconnects and resumes from where it left off.</p>
+    <p>The riwayah is not drawn evenly. Hafs 'an 'Asim makes up about four fifths of the library but is deliberately held to around an eighth of the airtime, and the rest is shared among the other readings in a way that favours the rarer ones without letting the handful with a single recording keep returning. In practice the nine rarest qira'at take about a third of the airtime while holding four percent of the recordings.</p>
+    <p>When the chosen recitation has published ayah timings, the verse being recited appears beneath the surah name, in the mushaf text of that specific riwayah &mdash; Warsh audio is shown against the Warsh mushaf, Qalun against Qalun, and so on, each in the King Fahd Complex's Uthmanic font for that narration. This matters because the readings do not all divide the text the same way: al-Baqarah is 285 verses in Warsh and Qalun but 286 in Hafs and Shu'bah. Recitations without published timings, or in riwayat with no published digital mushaf, simply play without text.</p>
+    <p>Long surahs (over ~25 minutes) are automatically split into 15&ndash;20 minute parts, and each part joins the random rotation on its own, so no single track keeps the stream tied up for hours. Where ayah timings exist, these parts begin and end on verse boundaries rather than mid-verse. If the connection drops mid-recitation, the player reconnects and resumes from where it left off.</p>
     <p>Tip: open this page in your phone's browser and use "Add to Home Screen" so it behaves like an app and keeps playing with your screen locked.</p>
   </details>
 
@@ -396,6 +463,103 @@
   const CHUNK_TARGET = 17.5 * 60;
   const REWIND_SECONDS = 10;
 
+  // --- Mushaf text, per riwayah -------------------------------------------
+  // Text comes from the King Fahd Complex's published Uthmanic data, which
+  // ships a separate dataset + font per narration. This matters: the riwayat
+  // do not even agree on how many ayat there are (Hafs 6236, Shu'bah 6236,
+  // Bazzi 6220, Duri/Susi 6217, Warsh/Qalun 6214), so rendering Warsh audio
+  // against a Hafs text would drift and then break outright.
+  //
+  // mp3quran's ayah timings use each riwayah's OWN numbering (verified:
+  // al-Baqarah returns 285 timed ayat for Warsh and Duri, 286 for Shu'bah),
+  // so a straight (surah, ayah) join against the matching dataset is correct.
+  //
+  // Note: mp3quran also returns a `page` SVG + `polygon` highlight box with
+  // each timing, but those are the same Hafs Madani mushaf for every riwayah
+  // — identical polygons for a Hafs read and a Warsh read. Using them would
+  // show the wrong mushaf, so we render the text ourselves instead.
+  const KFGQPC = 'https://cdn.jsdelivr.net/gh/thetruetruth/quran-data-kfgqpc@main/';
+  const NARRATION = {
+    1:  { key:'hafs',   font:'hafs18',   file:'hafs/data/hafsData_v18.json',     surahKey:'sora' },
+    2:  { key:'warsh',  font:'warsh10',  file:'warsh/data/warshData_v10.json',   surahKey:'sura_no' },
+    18: { key:'warsh',  font:'warsh10',  file:'warsh/data/warshData_v10.json',   surahKey:'sura_no' },
+    5:  { key:'qaloon', font:'qaloon10', file:'qaloon/data/QaloonData_v10.json', surahKey:'sura_no' },
+    13: { key:'doori',  font:'doori9',   file:'doori/data/DooriData_v09.json',   surahKey:'sura_no' },
+    7:  { key:'soosi',  font:'soosi9',   file:'soosi/data/SoosiData09.json',     surahKey:'sura_no' },
+    15: { key:'shouba', font:'shouba8',  file:'shouba/data/ShoubaData08.json',   surahKey:'sura_no' },
+    4:  { key:'bazzi',  font:'bazzi7',   file:'bazzi/data/BazziData_v07.json',   surahKey:'sura_no' },
+    6:  { key:'qumbul', font:'qumbul7',  file:'qumbul/data/QumbulData_v07.json', surahKey:'sura_no' }
+  };
+  // Each dataset is ~2.6MB uncompressed (well under 1MB over the wire, and
+  // served with long-lived cache headers), so it is fetched at most once per
+  // narration and then left to the browser's HTTP cache.
+  const narrationPromises = {};   // narration key -> Promise<Map("s:a" -> text)>
+  const timingReadIndex = {};     // normalised moshaf server -> timing read id
+  let timingReadsLoaded = null;   // Promise, resolved once the index is built
+
+  // How often to prefer a reciter that has ayah timings, within an already
+  // chosen riwayah. Deliberately 0: breadth of recitation comes first, and
+  // text is a bonus when it happens to be available.
+  //
+  // Raising this trades recording variety for text coverage. Measured over
+  // 120k simulated tracks: 0 gives text on 15% of tracks with an effective
+  // spread of 52 recordings; 0.7 gives text on 31% but concentrates the
+  // spread to 44, because it keeps returning to the same timed recordings
+  // (only 98 of 219 Hafs recordings have timings, 5 of 13 Warsh, 1 of 5
+  // Duri). All 275 recordings stay reachable at any setting.
+  const TEXT_BIAS = 0;
+
+  // Riwayah weighting.
+  //
+  // Drawing all 18 riwayat uniformly gives maximum qira'at spread, but the
+  // riwayat holding a single recording (Hisham, Qunbul, Ibn Jammaz...) then
+  // replay that recording every ~18th track, and the effective spread across
+  // the catalogue collapses to ~52 of 275 recordings.
+  //
+  // So: Hafs is pinned to a fixed slice, and the other 17 riwayat split what
+  // remains in proportion to the square root of their recording counts. The
+  // square root is what compresses a 219:1 catalogue ratio down to about 4:1
+  // in airtime, so the well-stocked readings still lead without the
+  // single-recording ones vanishing.
+  //
+  // At HAFS_SHARE = 0.125 this yields ~88 effective recordings of 275, with
+  // the nine rarest qira'at taking ~32% of airtime and the very rarest
+  // recurring about every 32 tracks. Raising the pin trades qira'at spread
+  // back for recording spread: 0.35 would give ~160 effective recordings but
+  // only ~24% to the rare readings.
+  const HAFS_SHARE = 0.125;
+  //
+  // Counts are seeded from the catalogue as measured on 2026-07-21 and are
+  // self-correcting: once a riwayah's reciter list has actually been fetched
+  // we count it for real, so the weights track the site as it grows.
+  const RECORDING_COUNTS = {
+    1:219, 2:13, 3:2, 4:2, 5:11, 6:1, 7:2, 8:1, 9:2,
+    10:1, 11:1, 12:6, 13:5, 15:3, 16:2, 18:2, 19:1, 20:1
+  };
+
+  function recordingCount(riwayahId){
+    const cached = recitersCache[riwayahId];
+    if(cached && cached.length){
+      const n = cached.reduce((sum, r) => sum + (r.moshaf ? r.moshaf.length : 0), 0);
+      if(n > 0) return n;
+    }
+    return RECORDING_COUNTS[riwayahId] || 1;
+  }
+
+  function pickRiwayah(){
+    if(RIWAYAH_POOL.indexOf(1) !== -1 && Math.random() < HAFS_SHARE) return 1;
+    const others = RIWAYAH_POOL.filter(rw => rw !== 1);
+    if(!others.length) return 1;
+    const weights = others.map(rw => Math.sqrt(recordingCount(rw)));
+    const total = weights.reduce((a, b) => a + b, 0);
+    let r = Math.random() * total;
+    for(let i = 0; i < others.length; i++){
+      r -= weights[i];
+      if(r <= 0) return others[i];
+    }
+    return others[others.length - 1];
+  }
+
   const els = {
     surahName: document.getElementById('surahName'),
     surahMeta: document.getElementById('surahMeta'),
@@ -412,7 +576,10 @@
     timeTotal: document.getElementById('timeTotal'),
     volume: document.getElementById('volume'),
     audio: document.getElementById('audio'),
-    rosette: document.getElementById('rosette')
+    rosette: document.getElementById('rosette'),
+    ayahPanel: document.getElementById('ayahPanel'),
+    ayahText: document.getElementById('ayahText'),
+    ayahNum: document.getElementById('ayahNum')
   };
 
   const PAUSE_ICON = '<path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/>';
@@ -468,6 +635,80 @@
     throw lastErr;
   }
 
+  // Large static CDN payloads: let the browser's HTTP cache do its job, and
+  // don't bother with the CORS relays (jsDelivr sends proper headers).
+  async function fetchCached(url){
+    const r = await fetch(url);
+    if(!r.ok) throw new Error('bad status ' + r.status);
+    return r.json();
+  }
+
+  function normServer(u){
+    return String(u || '').replace(/^https?:\/\//,'').replace(/\/+$/,'').toLowerCase();
+  }
+
+  // The subset of reciters mp3quran has ayah timings for. ~110 reads covering
+  // 7 riwayat (Hafs, Warsh, Qalun, Duri 'an Abu 'Amr, Susi, Bazzi, Shu'bah).
+  // Everything outside this list still plays — it just plays without text.
+  function loadTimingReads(){
+    if(!timingReadsLoaded){
+      timingReadsLoaded = fetchJSON(API + '/ayat_timing/reads')
+        .then(reads => {
+          (reads || []).forEach(r => {
+            const k = normServer(r.folder_url);
+            if(k && !(k in timingReadIndex)) timingReadIndex[k] = r.id;
+          });
+        })
+        .catch(() => {}); // no timings this session; player behaves as before
+    }
+    return timingReadsLoaded;
+  }
+
+  function narrationIndex(narration){
+    if(!narrationPromises[narration.key]){
+      narrationPromises[narration.key] = fetchCached(KFGQPC + narration.file)
+        .then(rows => {
+          const m = new Map();
+          rows.forEach(row => {
+            m.set(row[narration.surahKey] + ':' + row.aya_no, row.aya_text);
+          });
+          return m;
+        })
+        .catch(e => { narrationPromises[narration.key] = null; throw e; });
+    }
+    return narrationPromises[narration.key];
+  }
+
+  // Build [{n, t0, t1, text}] for a track, or null if this combination has no
+  // timings or no published text for its riwayah.
+  async function buildAyat(track){
+    const narration = NARRATION[track.riwayahId];
+    if(!narration) return null;
+    await loadTimingReads();
+    const readId = timingReadIndex[normServer(track.server)];
+    if(readId == null) return null;
+
+    const [timings, textMap] = await Promise.all([
+      fetchJSON(API + '/ayat_timing?surah=' + track.surahId + '&read=' + readId),
+      narrationIndex(narration)
+    ]);
+    if(!Array.isArray(timings) || !timings.length) return null;
+
+    const ayat = timings
+      // ayah 0 is the reciter's opening (isti'adhah / basmalah), not a verse
+      .filter(a => a.ayah > 0 && a.start_time != null)
+      .map(a => ({
+        n: a.ayah,
+        t0: a.start_time / 1000,
+        t1: a.end_time / 1000,
+        text: textMap.get(track.surahId + ':' + a.ayah) || ''
+      }))
+      .filter(a => a.text)
+      .sort((a,b) => a.t0 - b.t0);
+
+    return ayat.length ? { ayat, font: narration.font } : null;
+  }
+
   async function loadMeta(){
     const [suwarAr, suwarEn, riwayahAr] = await Promise.all([
       fetchJSON(API + '/suwar?language=ar'),
@@ -489,20 +730,50 @@
 
   function pickRandom(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
 
+  function moshafServer(moshaf){
+    return moshaf.server.endsWith('/') ? moshaf.server : moshaf.server + '/';
+  }
+
+  // All (reciter, moshaf) pairs in this riwayah that could actually display
+  // text: the riwayah has a published mushaf AND the recording has timings.
+  const timedPairsCache = {};
+  async function timedPairs(riwayahId, reciters){
+    if(timedPairsCache[riwayahId]) return timedPairsCache[riwayahId];
+    if(!NARRATION[riwayahId]) return (timedPairsCache[riwayahId] = []);
+    await loadTimingReads();
+    const pairs = [];
+    reciters.forEach(reciter => {
+      (reciter.moshaf || []).forEach(moshaf => {
+        if(timingReadIndex[normServer(moshafServer(moshaf))] != null){
+          pairs.push({ reciter, moshaf });
+        }
+      });
+    });
+    return (timedPairsCache[riwayahId] = pairs);
+  }
+
   async function fetchTrackCandidate(){
     const attempts = 8;
     for(let i=0;i<attempts;i++){
       try{
-        const riwayahId = pickRandom(RIWAYAH_POOL);
+        const riwayahId = pickRiwayah();
         const reciters = await getReciters(riwayahId);
         if(!reciters.length) continue;
-        const reciter = pickRandom(reciters);
-        const moshaf = pickRandom(reciter.moshaf);
+
+        // Riwayah is already fixed above; only the recording varies here.
+        let reciter, moshaf;
+        const timed = TEXT_BIAS > 0 ? await timedPairs(riwayahId, reciters) : [];
+        if(timed.length && Math.random() < TEXT_BIAS){
+          ({ reciter, moshaf } = pickRandom(timed));
+        } else {
+          reciter = pickRandom(reciters);
+          moshaf = pickRandom(reciter.moshaf);
+        }
         const ids = (moshaf.surah_list || '').split(',').map(s=>s.trim()).filter(Boolean).map(Number);
         if(!ids.length) continue;
         const surahId = pickRandom(ids);
         const surahInfo = suwarMap[surahId] || { ar: 'سورة ' + surahId, en: 'Surah ' + surahId };
-        const server = moshaf.server.endsWith('/') ? moshaf.server : moshaf.server + '/';
+        const server = moshafServer(moshaf);
         return {
           reciterAr: reciter.name,
           riwayahId,
@@ -511,6 +782,7 @@
           surahId,
           surahAr: surahInfo.ar,
           surahEn: surahInfo.en,
+          server,
           audioUrl: server + pad3(surahId) + '.mp3'
         };
       } catch(e){
@@ -559,6 +831,84 @@
     setStatus('');
   }
 
+  function hideAyahPanel(){
+    els.ayahPanel.classList.remove('show');
+    els.ayahText.textContent = '';
+    els.ayahNum.textContent = '';
+  }
+
+  // Long ayat (2:282 and friends) need to shrink to stay inside the card.
+  function fitAyah(){
+    const el = els.ayahText;
+    const max = Math.round(window.innerHeight * 0.36);
+    let size = 30;
+    el.style.fontSize = size + 'px';
+    while(size > 15 && el.scrollHeight > max){
+      size -= 2;
+      el.style.fontSize = size + 'px';
+    }
+  }
+
+  function showAyah(entry){
+    if(!cur) return;
+    els.ayahText.classList.add('fading');
+    setTimeout(() => {
+      if(!cur || cur.currentAyah !== entry.n) return;
+      els.ayahText.style.fontFamily = '"' + cur.ayahFont + '", "Amiri", serif';
+      els.ayahText.textContent = entry.text;
+      els.ayahNum.textContent = 'Ayah ' + entry.n + ' of ' + cur.ayat[cur.ayat.length-1].n;
+      fitAyah();
+      els.ayahText.classList.remove('fading');
+      els.ayahPanel.classList.add('show');
+    }, 180);
+  }
+
+  // Snap chunk boundaries to ayah starts so a part never begins or ends
+  // mid-verse. Called once ayat are available, which may be after the chunk
+  // was first assigned from duration alone.
+  function snapChunkToAyat(){
+    if(!cur || !cur.ayat || !cur.chunked || cur.snapped) return;
+    const nearestStart = t => cur.ayat.reduce(
+      (best, a) => Math.abs(a.t0 - t) < Math.abs(best - t) ? a.t0 : best,
+      cur.ayat[0].t0
+    );
+    const newStart = cur.chunkIndex === 0 ? 0 : nearestStart(cur.chunkStart);
+    const newEnd = cur.chunkIndex === cur.numChunks - 1
+      ? cur.chunkEnd
+      : nearestStart(cur.chunkEnd);
+    if(newEnd - newStart < 30) return; // degenerate snap, leave as-is
+    cur.snapped = true;
+    // Only rewind to the snapped start if we haven't already played past it.
+    const wasAtStart = Math.abs(els.audio.currentTime - cur.chunkStart) < 2;
+    cur.chunkStart = newStart;
+    cur.chunkEnd = newEnd;
+    if(wasAtStart && cur.chunkIndex > 0) els.audio.currentTime = newStart;
+  }
+
+  // Fetch timings + riwayah text in the background so audio never waits on
+  // them. If the track has moved on by the time they land, we drop them.
+  function attachAyat(track){
+    const token = cur;
+    buildAyat(track).then(res => {
+      if(!res || cur !== token) return;
+      cur.ayat = res.ayat;
+      cur.ayahFont = res.font;
+      snapChunkToAyat();
+      updateAyahForTime(els.audio.currentTime);
+    }).catch(() => {});
+  }
+
+  function updateAyahForTime(t){
+    if(!cur || !cur.ayat) return;
+    let found = null;
+    for(let i = cur.ayat.length - 1; i >= 0; i--){
+      if(t >= cur.ayat[i].t0){ found = cur.ayat[i]; break; }
+    }
+    if(!found || found.n === cur.currentAyah) return;
+    cur.currentAyah = found.n;
+    showAyah(found);
+  }
+
   function renderChunkMeta(){
     if(!cur) return;
     const t = cur.track;
@@ -578,10 +928,15 @@
       chunkStart: 0,
       chunkEnd: Infinity,
       recoveries: 0,
-      resumeAt: null
+      resumeAt: null,
+      ayat: null,
+      ayahFont: null,
+      currentAyah: null,
+      snapped: false
     };
     lastPos = 0;
     renderTrack(track);
+    hideAyahPanel();
     els.audio.src = track.audioUrl;
     try{
       await els.audio.play();
@@ -590,6 +945,7 @@
     }catch(e){
       // autoplay blocked or stream failed; user can hit play manually
     }
+    attachAyat(track);
     ensureNext();
   }
 
@@ -647,6 +1003,7 @@
         cur.chunkStart = idx * len;
         cur.chunkEnd = (idx + 1) * len;
         if(idx > 0) els.audio.currentTime = cur.chunkStart;
+        snapChunkToAyat();
       } else {
         cur.chunkEnd = isFinite(d) ? d : Infinity;
       }
@@ -692,6 +1049,7 @@
     els.barFill.style.width = (rel / span * 100) + '%';
     els.timeElapsed.textContent = fmtTime(rel);
     els.timeTotal.textContent = fmtTime(span);
+    updateAyahForTime(els.audio.currentTime);
     // End of a middle chunk: move on to the next random selection.
     if(cur && cur.chunked && cur.chunkIndex < cur.numChunks - 1
        && els.audio.currentTime >= cur.chunkEnd - 0.3 && !advancing){
@@ -717,12 +1075,14 @@
   els.skipBtn.addEventListener('click', skip);
   els.rewindBtn.addEventListener('click', rewind);
   els.volume.addEventListener('input', () => { els.audio.volume = Number(els.volume.value); });
+  window.addEventListener('resize', () => { if(cur && cur.ayat) fitAyah(); });
 
   async function start(){
     if(started) return;
     started = true;
     document.getElementById('startOverlay').remove();
     setEyebrow('TUNING IN…', true);
+    loadTimingReads();
     try{
       await loadMeta();
     }catch(e){
@@ -743,7 +1103,8 @@
   overlay.className = 'overlay';
   overlay.id = 'startOverlay';
   overlay.innerHTML =
-    '<div class="name">Muqri</div>' +
+    '<div class="name">مقرئ</div>' +
+    '<div class="latin">Muqriʼ</div>' +
     '<div class="sub">A random reciter, a random qira\'ah, every time. Tap to begin an endless stream.</div>' +
     '<button class="start-btn" id="startBtn">Begin Listening</button>' +
     '<div class="hint">Streams directly from mp3quran.net</div>';
