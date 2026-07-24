@@ -73,6 +73,46 @@
     color:var(--muted);
   }
 
+  .modebar{
+    width:100%;
+    max-width:440px;
+    display:flex;
+    gap:6px;
+    margin-top:10px;
+    padding:4px;
+    border:1px solid var(--line);
+    border-radius:100px;
+    background:rgba(0,0,0,0.15);
+  }
+  .mode-tab{
+    -webkit-tap-highlight-color:transparent;
+    flex:1;
+    border:none;
+    background:none;
+    cursor:pointer;
+    color:var(--muted);
+    font-family:'Work Sans', sans-serif;
+    font-size:11px;
+    letter-spacing:1.2px;
+    text-transform:uppercase;
+    padding:9px 8px;
+    border-radius:100px;
+    transition:color 0.25s ease, background 0.25s ease;
+  }
+  .mode-tab .sub{
+    display:block;
+    font-size:9px;
+    letter-spacing:0.6px;
+    text-transform:none;
+    opacity:0.7;
+    margin-top:2px;
+  }
+  .mode-tab.active{
+    color:var(--gold);
+    background:rgba(201,162,75,0.12);
+  }
+  .mode-tab:not(.active):active{ color:var(--parchment); }
+
   .stage{
     position:relative;
     width:100%;
@@ -374,7 +414,16 @@
 
   <div class="brandbar">
     <div class="name">Muqriʼ<span class="ar">مقرئ</span></div>
-    <div class="tag">Random Qira'at Radio</div>
+    <div class="tag" id="brandTag">Random Qira'at Radio</div>
+  </div>
+
+  <div class="modebar" role="tablist">
+    <button class="mode-tab active" id="modeRadio" role="tab" aria-selected="true">
+      Radio<span class="sub">All 114 surahs</span>
+    </button>
+    <button class="mode-tab" id="modeFriday" role="tab" aria-selected="false">
+      Friday<span class="sub">Al-Kahf · الكهف</span>
+    </button>
   </div>
 
   <div class="stage">
@@ -432,6 +481,7 @@
     <summary>About this stream</summary>
     <p>Each track picks a random riwayah (a canonically transmitted reading of the Qur'an, such as Hafs 'an 'Asim or Warsh 'an Nafi') and then a random reciter who has recorded that riwayah, streaming directly from mp3quran.net's public library. When a surah ends, it automatically moves on to a new random combination.</p>
     <p>The riwayah is not drawn evenly. Hafs 'an 'Asim makes up about four fifths of the library but is deliberately held to around an eighth of the airtime, and the rest is shared among the other readings in a way that favours the rarer ones without letting the handful with a single recording keep returning. In practice the nine rarest qira'at take about a third of the airtime while holding four percent of the recordings.</p>
+    <p>Friday mode plays Surat al-Kahf exclusively, following the tradition of reciting it on Fridays, and rotates through the different readings of it rather than through different surahs. The same weighting applies, except for two readings that have no recording of al-Kahf on the library and so sit out this mode. In Friday mode the surah is played whole rather than split into parts.</p>
     <p>When the chosen recitation has published ayah timings, the verse being recited appears beneath the surah name, in the mushaf text of that specific riwayah &mdash; Warsh audio is shown against the Warsh mushaf, Qalun against Qalun, and so on, each in the King Fahd Complex's Uthmanic font for that narration. This matters because the readings do not all divide the text the same way: al-Baqarah is 285 verses in Warsh and Qalun but 286 in Hafs and Shu'bah. Recitations without published timings, or in riwayat with no published digital mushaf, simply play without text.</p>
     <p>Long surahs (over ~25 minutes) are automatically split into 15&ndash;20 minute parts, and each part joins the random rotation on its own, so no single track keeps the stream tied up for hours. Where ayah timings exist, these parts begin and end on verse boundaries rather than mid-verse. If the connection drops mid-recitation, the player reconnects and resumes from where it left off.</p>
     <p>Tip: open this page in your phone's browser and use "Add to Home Screen" so it behaves like an app and keeps playing with your screen locked.</p>
@@ -462,6 +512,18 @@
   const CHUNK_MIN_DURATION = 25 * 60;
   const CHUNK_TARGET = 17.5 * 60;
   const REWIND_SECONDS = 10;
+
+  // Friday mode: al-Kahf (surah 18) exclusively, in keeping with the Friday
+  // practice of reciting it. Two riwayat are excluded because the site has no
+  // al-Kahf recording for them at all (Hisham 'an Ibn 'Amir and Ibn Jammaz
+  // 'an Abu Ja'far); every other reading has at least one. The same Hafs cap
+  // and square-root weighting apply, so Friday mode is still a spread of
+  // qira'at, just all of one surah. al-Kahf runs long (35-50 min murattal),
+  // but in this mode it is played whole rather than chunked — the point is to
+  // sit with the surah start to finish, then roll to another reading of it.
+  const KAHF_SURAH = 18;
+  const FRIDAY_EXCLUDE = [19, 20];
+  let fridayMode = false;
 
   // --- Mushaf text, per riwayah -------------------------------------------
   // Text comes from the King Fahd Complex's published Uthmanic data, which
@@ -546,9 +608,16 @@
     return RECORDING_COUNTS[riwayahId] || 1;
   }
 
+  function activePool(){
+    return fridayMode
+      ? RIWAYAH_POOL.filter(rw => FRIDAY_EXCLUDE.indexOf(rw) === -1)
+      : RIWAYAH_POOL;
+  }
+
   function pickRiwayah(){
-    if(RIWAYAH_POOL.indexOf(1) !== -1 && Math.random() < HAFS_SHARE) return 1;
-    const others = RIWAYAH_POOL.filter(rw => rw !== 1);
+    const pool = activePool();
+    if(pool.indexOf(1) !== -1 && Math.random() < HAFS_SHARE) return 1;
+    const others = pool.filter(rw => rw !== 1);
     if(!others.length) return 1;
     const weights = others.map(rw => Math.sqrt(recordingCount(rw)));
     const total = weights.reduce((a, b) => a + b, 0);
@@ -579,7 +648,10 @@
     rosette: document.getElementById('rosette'),
     ayahPanel: document.getElementById('ayahPanel'),
     ayahText: document.getElementById('ayahText'),
-    ayahNum: document.getElementById('ayahNum')
+    ayahNum: document.getElementById('ayahNum'),
+    brandTag: document.getElementById('brandTag'),
+    modeRadio: document.getElementById('modeRadio'),
+    modeFriday: document.getElementById('modeFriday')
   };
 
   const PAUSE_ICON = '<path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/>';
@@ -771,7 +843,10 @@
         }
         const ids = (moshaf.surah_list || '').split(',').map(s=>s.trim()).filter(Boolean).map(Number);
         if(!ids.length) continue;
-        const surahId = pickRandom(ids);
+        // Friday mode locks the surah to al-Kahf; skip any recording that
+        // doesn't include it and try another combination.
+        if(fridayMode && ids.indexOf(KAHF_SURAH) === -1) continue;
+        const surahId = fridayMode ? KAHF_SURAH : pickRandom(ids);
         const surahInfo = suwarMap[surahId] || { ar: 'سورة ' + surahId, en: 'Surah ' + surahId };
         const server = moshafServer(moshaf);
         return {
@@ -783,6 +858,7 @@
           surahAr: surahInfo.ar,
           surahEn: surahInfo.en,
           server,
+          friday: fridayMode,
           audioUrl: server + pad3(surahId) + '.mp3'
         };
       } catch(e){
@@ -993,7 +1069,8 @@
     }
     if(!cur.chunkAssigned){
       cur.chunkAssigned = true;
-      if(isFinite(d) && d > CHUNK_MIN_DURATION){
+      // Friday mode plays al-Kahf whole, never chunked.
+      if(!cur.track.friday && isFinite(d) && d > CHUNK_MIN_DURATION){
         const n = Math.max(2, Math.round(d / CHUNK_TARGET));
         const len = d / n;
         const idx = Math.floor(Math.random() * n);
@@ -1076,6 +1153,22 @@
   els.rewindBtn.addEventListener('click', rewind);
   els.volume.addEventListener('input', () => { els.audio.volume = Number(els.volume.value); });
   window.addEventListener('resize', () => { if(cur && cur.ayat) fitAyah(); });
+
+  function setMode(friday){
+    if(friday === fridayMode) return;
+    fridayMode = friday;
+    els.modeFriday.classList.toggle('active', friday);
+    els.modeFriday.setAttribute('aria-selected', String(friday));
+    els.modeRadio.classList.toggle('active', !friday);
+    els.modeRadio.setAttribute('aria-selected', String(!friday));
+    els.brandTag.textContent = friday ? "Friday · Surat al-Kahf" : "Random Qira'at Radio";
+    // The prefetched next track belongs to the old mode; drop it and, if we're
+    // already playing, jump straight to a track in the new mode.
+    nextTrack = null;
+    if(started){ setStatus(''); advance(); ensureNext(); }
+  }
+  els.modeRadio.addEventListener('click', () => setMode(false));
+  els.modeFriday.addEventListener('click', () => setMode(true));
 
   async function start(){
     if(started) return;
