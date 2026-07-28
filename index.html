@@ -113,6 +113,66 @@
   }
   .mode-tab:not(.active):active{ color:var(--parchment); }
 
+  .review-setup{
+    display:none;
+    margin-bottom:18px;
+    padding-bottom:16px;
+    border-bottom:1px solid var(--line);
+  }
+  .review-row{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    flex-wrap:wrap;
+    font-size:12.5px;
+    color:var(--muted);
+    letter-spacing:0.3px;
+  }
+  .review-row input{
+    width:52px;
+    background:#0e1417;
+    border:1px solid var(--line);
+    border-radius:8px;
+    color:var(--parchment);
+    font-size:15px;
+    padding:7px 4px;
+    text-align:center;
+    font-variant-numeric:tabular-nums;
+  }
+  .review-row input:focus{ outline:none; border-color:var(--gold-soft); }
+  .review-start{
+    -webkit-tap-highlight-color:transparent;
+    border:1px solid var(--gold-soft);
+    background:rgba(201,162,75,0.08);
+    color:var(--gold);
+    font-family:'Work Sans', sans-serif;
+    font-size:11px;
+    letter-spacing:1.2px;
+    text-transform:uppercase;
+    padding:8px 16px;
+    border-radius:100px;
+    cursor:pointer;
+  }
+  .review-start:active{ background:rgba(201,162,75,0.2); }
+  .review-resume{
+    display:none;
+    margin-top:12px;
+    text-align:center;
+  }
+  .review-resume button{
+    -webkit-tap-highlight-color:transparent;
+    border:none;
+    background:none;
+    color:var(--gold);
+    font-family:'Work Sans', sans-serif;
+    font-size:12px;
+    letter-spacing:0.3px;
+    cursor:pointer;
+    padding:4px 6px;
+  }
+  .review-resume button:active{ opacity:0.7; }
+
   .stage{
     position:relative;
     width:100%;
@@ -424,6 +484,9 @@
     <button class="mode-tab" id="modeFriday" role="tab" aria-selected="false">
       Friday<span class="sub">Al-Kahf · الكهف</span>
     </button>
+    <button class="mode-tab" id="modeReview" role="tab" aria-selected="false">
+      Review<span class="sub">By juz'</span>
+    </button>
   </div>
 
   <div class="stage">
@@ -436,6 +499,19 @@
     </svg>
 
     <div class="card">
+      <div class="review-setup" id="reviewSetup">
+        <div class="review-row">
+          <span>Juz'</span>
+          <input type="number" id="juzFrom" min="1" max="30" value="1" inputmode="numeric" aria-label="From juz">
+          <span>to</span>
+          <input type="number" id="juzTo" min="1" max="30" value="1" inputmode="numeric" aria-label="To juz">
+          <button class="review-start" id="reviewStart">Start</button>
+        </div>
+        <div class="review-resume" id="reviewResume">
+          <button id="reviewResumeBtn"><span class="txt"></span></button>
+        </div>
+      </div>
+
       <div class="eyebrow" id="eyebrow">NOW RECITING</div>
       <div class="surah" id="surahName">—</div>
       <div class="surah-meta" id="surahMeta">&nbsp;</div>
@@ -482,6 +558,7 @@
     <p>Each track picks a random riwayah (a canonically transmitted reading of the Qur'an, such as Hafs 'an 'Asim or Warsh 'an Nafi') and then a random reciter who has recorded that riwayah, streaming directly from mp3quran.net's public library. When a surah ends, it automatically moves on to a new random combination.</p>
     <p>The riwayah is not drawn evenly. Hafs 'an 'Asim makes up about four fifths of the library but is deliberately held to around an eighth of the airtime, and the rest is shared among the other readings in a way that favours the rarer ones without letting the handful with a single recording keep returning. In practice the nine rarest qira'at take about a third of the airtime while holding four percent of the recordings.</p>
     <p>Friday mode plays Surat al-Kahf exclusively, following the tradition of reciting it on Fridays, and rotates through the different readings of it rather than through different surahs. The same weighting applies, except for two readings that have no recording of al-Kahf on the library and so sit out this mode. In Friday mode the surah is played whole rather than split into parts.</p>
+    <p>Review mode is for revising a stretch of the Qur'an in order. Enter a starting and ending juz' (both included) and it recites that exact span &mdash; beginning and ending partway through a surah where the juz' boundaries fall &mdash; in Muhammad Siddiq al-Minshawi's measured (murattal) Hafs reading, with the verses shown as they are recited. Passages are broken into quarter-hizb (rub' al-hizb) pieces, and your place is saved continuously, so you can stop and later resume exactly where you left off.</p>
     <p>When the chosen recitation has published ayah timings, the verse being recited appears beneath the surah name, in the mushaf text of that specific riwayah &mdash; Warsh audio is shown against the Warsh mushaf, Qalun against Qalun, and so on, each in the King Fahd Complex's Uthmanic font for that narration. This matters because the readings do not all divide the text the same way: al-Baqarah is 285 verses in Warsh and Qalun but 286 in Hafs and Shu'bah. Recitations without published timings, or in riwayat with no published digital mushaf, simply play without text.</p>
     <p>Long surahs (over ~25 minutes) are automatically split into 15&ndash;20 minute parts, and each part joins the random rotation on its own, so no single track keeps the stream tied up for hours. Where ayah timings exist, these parts begin and end on verse boundaries rather than mid-verse. If the connection drops mid-recitation, the player reconnects and resumes from where it left off.</p>
     <p>Tip: open this page in your phone's browser and use "Add to Home Screen" so it behaves like an app and keeps playing with your screen locked.</p>
@@ -523,7 +600,59 @@
   // sit with the surah start to finish, then roll to another reading of it.
   const KAHF_SURAH = 18;
   const FRIDAY_EXCLUDE = [19, 20];
+
+  // Review mode: sequential recitation of a juz' range in Menshawi's Hafs
+  // murattal (mp3quran timing read 112, full 114-surah mushaf). Unlike Radio
+  // and Friday this is an ordered playlist, not a random draw, and it seeks to
+  // exact ayah boundaries so a range like juz' 4-6 starts partway into
+  // Al-'Imran and stops partway into Al-Ma'idah. Each surah's portion is split
+  // at quarter-hizb (rub' al-hizb) boundaries for progress + resume; playback
+  // runs continuously across them, and the exact position is saved so a
+  // session can be resumed later.
+  const MENSHAWI_SERVER = 'https://server10.mp3quran.net/minsh/';
+  const REVIEW_KEY = 'muqri.review.v1';
+
+  // The 240 quarter-hizb (rub' al-hizb, ۞) start points, as surah -> [ayahs].
+  // Standard Qur'an metadata; every juz' boundary is also a rub' boundary, so
+  // a whole-juz' range always divides into a whole number of rub's.
+  const RUB_STARTS = {
+    1:[1], 2:[26,44,60,75,92,106,124,142,158,177,189,203,219,233,243,253,263,272,283],
+    3:[15,33,52,75,93,113,133,153,171,186], 4:[1,12,24,36,58,74,88,100,114,135,148,163],
+    5:[1,12,27,41,51,67,82,97,109], 6:[13,36,59,74,95,111,127,141,151],
+    7:[1,31,47,65,88,117,142,156,171,189], 8:[1,22,41,61],
+    9:[1,19,34,46,60,75,93,111,122], 10:[11,26,53,71,90], 11:[6,24,41,61,84,108],
+    12:[7,30,53,77,101], 13:[5,19,35], 14:[10,28], 15:[1,50],
+    16:[1,30,51,75,90,111], 17:[1,23,50,70,99], 18:[17,32,51,75,99], 19:[22,59],
+    20:[1,55,83,111], 21:[1,29,51,83], 22:[1,19,38,60], 23:[1,36,75],
+    24:[1,21,35,53], 25:[1,21,53], 26:[1,52,111,181], 27:[1,27,56,82],
+    28:[12,29,51,76], 29:[1,26,46], 30:[1,31,54], 31:[22], 32:[11],
+    33:[1,18,31,51,60], 34:[10,24,46], 35:[15,41], 36:[28,60], 37:[22,83,145],
+    38:[21,52], 39:[8,32,53], 40:[1,21,41,66], 41:[9,25,47], 42:[13,27,51],
+    43:[24,57], 44:[17], 45:[12], 46:[1,21], 47:[10,33], 48:[18], 49:[1,14],
+    50:[27], 51:[31], 52:[24], 53:[26], 54:[9], 55:[1], 56:[1,75], 57:[16],
+    58:[1,14], 59:[11], 60:[7], 62:[1], 63:[4], 65:[1], 66:[1], 67:[1], 68:[1],
+    69:[1], 70:[19], 72:[1], 73:[20], 75:[1], 76:[19], 78:[1], 80:[1], 82:[1],
+    84:[1], 87:[1], 90:[1], 94:[1], 100:[9]
+  };
+
+  // Standard juz' start points [surah, ayah] (Hafs/Madani numbering, which is
+  // what the timing data uses). A range's end is one ayah before the start of
+  // the juz' after it; juz' 30 ends at the end of the Qur'an.
+  const JUZ_START = {
+    1:[1,1],   2:[2,142], 3:[2,253], 4:[3,93],  5:[4,24],  6:[4,148],
+    7:[5,82],  8:[6,111], 9:[7,88],  10:[8,41], 11:[9,93], 12:[11,6],
+    13:[12,53],14:[15,1], 15:[17,1], 16:[18,75],17:[21,1], 18:[23,1],
+    19:[25,21],20:[27,56],21:[29,46],22:[33,31],23:[36,28],24:[39,32],
+    25:[41,47],26:[46,1], 27:[51,31],28:[58,1], 29:[67,1], 30:[78,1]
+  };
+  const QURAN_END = [114, 6];
+
+  let mode = 'radio';        // 'radio' | 'friday' | 'review'
   let fridayMode = false;
+  let reviewMode = false;
+  let reviewState = null;    // { fromJuz, toJuz, items:[{surahId,startAyah,endAyah}], idx }
+  let reviewToken = 0;       // guards async loads against mode/range switches
+  let lastReviewSave = 0;
 
   // --- Mushaf text, per riwayah -------------------------------------------
   // Text comes from the King Fahd Complex's published Uthmanic data, which
@@ -651,7 +780,14 @@
     ayahNum: document.getElementById('ayahNum'),
     brandTag: document.getElementById('brandTag'),
     modeRadio: document.getElementById('modeRadio'),
-    modeFriday: document.getElementById('modeFriday')
+    modeFriday: document.getElementById('modeFriday'),
+    modeReview: document.getElementById('modeReview'),
+    reviewSetup: document.getElementById('reviewSetup'),
+    juzFrom: document.getElementById('juzFrom'),
+    juzTo: document.getElementById('juzTo'),
+    reviewStart: document.getElementById('reviewStart'),
+    reviewResume: document.getElementById('reviewResume'),
+    reviewResumeBtn: document.getElementById('reviewResumeBtn')
   };
 
   const PAUSE_ICON = '<path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/>';
@@ -1047,11 +1183,12 @@
 
   function skip(){
     setStatus('');
+    if(cur && cur.review){ reviewAdvance(); return; }   // skip = next surah in the range
     advance();
   }
 
   function rewind(){
-    const floor = (cur && cur.chunked) ? cur.chunkStart : 0;
+    const floor = cur ? (cur.review ? (cur.playStart || 0) : (cur.chunked ? cur.chunkStart : 0)) : 0;
     els.audio.currentTime = Math.max(floor, els.audio.currentTime - REWIND_SECONDS);
   }
 
@@ -1065,6 +1202,18 @@
       const t = Math.max(0, Math.min(cur.resumeAt, isFinite(d) ? d - 1 : cur.resumeAt));
       cur.resumeAt = null;
       els.audio.currentTime = t;
+      return;
+    }
+    if(cur.review){
+      cur.playStart = cur.reviewSeek != null ? cur.reviewSeek : (cur.startT0 || 0);
+      cur.playEnd = cur.endT1 != null ? cur.endT1 : (isFinite(d) ? d : Infinity);
+      cur.reviewChunks = buildReviewChunks();
+      cur.chunkIndex = reviewChunkIndexFor(cur.playStart);
+      if(cur.playStart > 0.3 && Math.abs(els.audio.currentTime - cur.playStart) > 1){
+        els.audio.currentTime = cur.playStart;
+      }
+      cur.reviewSeek = null;
+      updateReviewMeta();
       return;
     }
     if(!cur.chunkAssigned){
@@ -1090,7 +1239,10 @@
     }
   });
 
-  els.audio.addEventListener('ended', advance);
+  els.audio.addEventListener('ended', () => {
+    if(cur && cur.review){ reviewAdvance(); return; }
+    advance();
+  });
 
   els.audio.addEventListener('error', () => {
     // If we were mid-recitation, the connection likely dropped (e.g. after a
@@ -1107,7 +1259,11 @@
       return;
     }
     errorStreak++;
-    if(errorStreak <= 5){
+    if(cur && cur.review){
+      // Skip a stubborn surah rather than jumping into the random stream.
+      if(errorStreak <= 5) reviewAdvance();
+      else { setEyebrow('CONNECTION TROUBLE', false); setStatus('Could not load this recitation. Tap Skip to move on.'); }
+    } else if(errorStreak <= 5){
       advance();
     } else {
       setEyebrow('CONNECTION TROUBLE', false);
@@ -1119,6 +1275,7 @@
     const d = els.audio.duration;
     if(!isFinite(d) || d <= 0) return;
     lastPos = els.audio.currentTime;
+    if(cur && cur.review){ handleReviewTimeupdate(d); return; }
     const start = (cur && cur.chunked) ? cur.chunkStart : 0;
     const end = (cur && cur.chunked) ? Math.min(cur.chunkEnd, d) : d;
     const span = Math.max(end - start, 0.01);
@@ -1144,6 +1301,7 @@
     els.playIcon.innerHTML = PLAY_ICON;
     els.rosette.classList.remove('breathe');
     if('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+    if(cur && cur.review) saveReviewProgress(true);
   });
 
   els.playBtn.addEventListener('click', () => {
@@ -1154,21 +1312,286 @@
   els.volume.addEventListener('input', () => { els.audio.volume = Number(els.volume.value); });
   window.addEventListener('resize', () => { if(cur && cur.ayat) fitAyah(); });
 
-  function setMode(friday){
-    if(friday === fridayMode) return;
-    fridayMode = friday;
-    els.modeFriday.classList.toggle('active', friday);
-    els.modeFriday.setAttribute('aria-selected', String(friday));
-    els.modeRadio.classList.toggle('active', !friday);
-    els.modeRadio.setAttribute('aria-selected', String(!friday));
-    els.brandTag.textContent = friday ? "Friday · Surat al-Kahf" : "Random Qira'at Radio";
-    // The prefetched next track belongs to the old mode; drop it and, if we're
-    // already playing, jump straight to a track in the new mode.
+  function setMode(name){
+    if(name === mode) return;
+    if(mode === 'review' && cur && cur.review) saveReviewProgress(true);
+    mode = name;
+    fridayMode = name === 'friday';
+    reviewMode = name === 'review';
+    [['radio', els.modeRadio], ['friday', els.modeFriday], ['review', els.modeReview]]
+      .forEach(([n, el]) => {
+        const on = n === name;
+        el.classList.toggle('active', on);
+        el.setAttribute('aria-selected', String(on));
+      });
+    els.brandTag.textContent = name === 'friday' ? "Friday · Surat al-Kahf"
+      : name === 'review' ? "Review · by juz'"
+      : "Random Qira'at Radio";
+    els.reviewSetup.style.display = reviewMode ? 'block' : 'none';
     nextTrack = null;
-    if(started){ setStatus(''); advance(); ensureNext(); }
+    reviewToken++;              // invalidate any in-flight review load
+    if(reviewMode){
+      // Don't auto-start; pause the radio and let the listener pick a range.
+      els.audio.pause();
+      reviewState = null;
+      hideAyahPanel();
+      prepareReviewSetup();
+      setEyebrow('CHOOSE A RANGE', false);
+      els.surahName.textContent = '—';
+      els.surahMeta.innerHTML = '&nbsp;';
+      els.reciterName.textContent = 'محمد صديق المنشاوي';
+      els.riwayahName.textContent = "Hafs 'an 'Asim  ·  حفص عن عاصم";
+      els.barFill.style.width = '0%';
+    } else if(started){
+      setStatus('');
+      advance();
+      ensureNext();
+    }
   }
-  els.modeRadio.addEventListener('click', () => setMode(false));
-  els.modeFriday.addEventListener('click', () => setMode(true));
+  els.modeRadio.addEventListener('click', () => setMode('radio'));
+  els.modeFriday.addEventListener('click', () => setMode('friday'));
+  els.modeReview.addEventListener('click', () => setMode('review'));
+
+  // ---- Review mode ------------------------------------------------------
+
+  function clampJuz(v){
+    v = Math.round(Number(v));
+    if(!isFinite(v)) return 1;
+    return Math.min(30, Math.max(1, v));
+  }
+
+  // Turn a juz' range into an ordered list of surahs with the exact ayah each
+  // one should start and stop on. endAyah === null means "to the end of the
+  // surah".
+  function reviewItems(fromJuz, toJuz){
+    const [ss, sa] = JUZ_START[fromJuz];
+    let es, ea;
+    if(toJuz >= 30){
+      es = QURAN_END[0]; ea = QURAN_END[1];
+    } else {
+      const [ns, na] = JUZ_START[toJuz + 1];
+      if(na <= 1){ es = ns - 1; ea = null; }   // juz' begins a surah → prev ends whole
+      else { es = ns; ea = na - 1; }
+    }
+    const items = [];
+    for(let sId = ss; sId <= es; sId++){
+      items.push({
+        surahId: sId,
+        startAyah: sId === ss ? sa : 1,
+        endAyah: sId === es ? ea : null
+      });
+    }
+    return items;
+  }
+
+  function menshawiTrack(surahId){
+    const info = suwarMap[surahId] || { ar: 'سورة ' + surahId, en: 'Surah ' + surahId };
+    return {
+      reciterAr: 'محمد صديق المنشاوي',
+      riwayahId: 1,
+      riwayahAr: riwayahArMap[1] || 'حفص عن عاصم',
+      riwayahEn: "Hafs 'an 'Asim",
+      surahId,
+      surahAr: info.ar,
+      surahEn: info.en,
+      server: MENSHAWI_SERVER,
+      friday: false,
+      review: true,
+      audioUrl: MENSHAWI_SERVER + pad3(surahId) + '.mp3'
+    };
+  }
+
+  // Split the current surah's played window [playStart, playEnd] at the
+  // quarter-hizb (rub') boundaries that fall inside it. Each piece is one rub'.
+  // Playback runs straight through; these only drive the progress bar and the
+  // part label, and give resume a finer grain. Falls back to a single piece if
+  // timings are unavailable.
+  function buildReviewChunks(){
+    const end = isFinite(cur.playEnd) ? cur.playEnd : (els.audio.duration || cur.playStart);
+    const single = [{ s: cur.playStart, e: end }];
+    if(!cur.ayat || !cur.ayat.length) return single;
+    const marks = RUB_STARTS[cur.track.surahId] || [];
+    const startA = cur.startAyah || 1;
+    const endA = cur.endAyah != null ? cur.endAyah : Infinity;
+    const byN = cur._ayatByN || (cur._ayatByN = new Map(cur.ayat.map(a => [a.n, a])));
+    const cuts = [];
+    for(const a of marks){
+      if(a > startA && a <= endA){
+        const ay = byN.get(a);
+        if(ay && ay.t0 > cur.playStart + 0.5 && ay.t0 < end - 0.5) cuts.push(ay.t0);
+      }
+    }
+    if(!cuts.length) return single;
+    cuts.sort((x, y) => x - y);
+    const bounds = [cur.playStart, ...cuts, end];
+    const arr = [];
+    for(let i = 0; i < bounds.length - 1; i++) arr.push({ s: bounds[i], e: bounds[i + 1] });
+    return arr;
+  }
+
+  function reviewChunkIndexFor(t){
+    const chunks = cur && cur.reviewChunks;
+    if(!chunks) return 0;
+    for(let i = 0; i < chunks.length; i++) if(t < chunks[i].e - 0.001) return i;
+    return chunks.length - 1;
+  }
+
+  function updateReviewMeta(){
+    if(!cur || !cur.review) return;
+    const t = cur.track;
+    const n = cur.reviewChunks ? cur.reviewChunks.length : 1;
+    let meta = t.surahEn + ' · Surah ' + t.surahId;
+    if(n > 1) meta += ' · Part ' + ((cur.chunkIndex || 0) + 1) + ' of ' + n;
+    if(reviewState) meta += ' · Juz ' + reviewState.fromJuz +
+      (reviewState.toJuz !== reviewState.fromJuz ? '–' + reviewState.toJuz : '');
+    els.surahMeta.textContent = meta;
+  }
+
+  async function reviewLoadItem(idx, seekTime){
+    if(!reviewState) return;
+    const token = ++reviewToken;
+    reviewState.idx = idx;
+    if(idx >= reviewState.items.length){ reviewComplete(); return; }
+    const item = reviewState.items[idx];
+    const track = menshawiTrack(item.surahId);
+    cur = {
+      review: true, track, ayat: null, ayahFont: 'hafs18', currentAyah: null,
+      startAyah: item.startAyah, endAyah: item.endAyah,
+      reviewSeek: (seekTime != null ? seekTime : null),
+      startT0: 0, endT1: null, playStart: 0, playEnd: Infinity,
+      reviewChunks: null, chunkIndex: 0, recoveries: 0, resumeAt: null, token
+    };
+    lastPos = 0;
+    renderTrack(track);
+    hideAyahPanel();
+    setEyebrow('LOADING…', true);
+    // Fetch timing + text before playing so we can trim to juz' boundaries.
+    let res = null;
+    try{ res = await buildAyat(track); }catch(e){}
+    if(!cur || cur.token !== token) return;   // switched away while loading
+    if(res){
+      cur.ayat = res.ayat;
+      cur.ayahFont = res.font;
+      if(item.startAyah > 1){
+        const a = res.ayat.find(x => x.n === item.startAyah);
+        if(a) cur.startT0 = a.t0;
+      }
+      if(item.endAyah != null){
+        const a = res.ayat.find(x => x.n === item.endAyah);
+        if(a) cur.endT1 = a.t1;
+      }
+    }
+    els.audio.src = track.audioUrl;
+    setEyebrow('NOW REVIEWING', false);
+    try{ await els.audio.play(); updateMediaSession(track); }catch(e){}
+  }
+
+  function handleReviewTimeupdate(d){
+    const t = els.audio.currentTime;
+    // Reached the juz'-boundary stop point for this surah → next surah.
+    if(t >= (isFinite(cur.playEnd) ? cur.playEnd : d) - 0.25){
+      if(!advancing){ advancing = true; reviewAdvance().finally(() => { advancing = false; }); }
+      return;
+    }
+    const chunks = cur.reviewChunks || [{ s: cur.playStart, e: isFinite(cur.playEnd) ? cur.playEnd : d }];
+    let i = cur.chunkIndex || 0;
+    while(i < chunks.length - 1 && t >= chunks[i].e) i++;
+    while(i > 0 && t < chunks[i].s) i--;
+    if(i !== cur.chunkIndex){ cur.chunkIndex = i; updateReviewMeta(); }
+    const seg = chunks[i];
+    const span = Math.max(seg.e - seg.s, 0.01);
+    const rel = Math.min(Math.max(t - seg.s, 0), span);
+    els.barFill.style.width = (rel / span * 100) + '%';
+    els.timeElapsed.textContent = fmtTime(rel);
+    els.timeTotal.textContent = fmtTime(span);
+    updateAyahForTime(t);
+    saveReviewProgress(false);
+  }
+
+  async function reviewAdvance(){
+    if(!reviewState) return;
+    saveReviewProgress(true);
+    const next = reviewState.idx + 1;
+    if(next >= reviewState.items.length){ reviewComplete(); return; }
+    await reviewLoadItem(next, null);
+  }
+
+  function reviewComplete(){
+    els.audio.pause();
+    setEyebrow('REVIEW COMPLETE', false);
+    const r = reviewState;
+    setStatus('Finished Juz ' + r.fromJuz +
+      (r.toJuz !== r.fromJuz ? '–' + r.toJuz : '') + '. Pick a range to review again.');
+    clearReviewProgress();
+    reviewState = null;
+    els.reviewSetup.style.display = 'block';
+    prepareReviewSetup();
+  }
+
+  function startReview(fromJuz, toJuz, resumeData){
+    fromJuz = clampJuz(fromJuz);
+    toJuz = Math.max(fromJuz, clampJuz(toJuz));
+    els.juzFrom.value = fromJuz;
+    els.juzTo.value = toJuz;
+    reviewState = { fromJuz, toJuz, items: reviewItems(fromJuz, toJuz), idx: 0 };
+    let idx = 0, seek = null;
+    if(resumeData && resumeData.fromJuz === fromJuz && resumeData.toJuz === toJuz){
+      idx = Math.min(Math.max(resumeData.idx | 0, 0), reviewState.items.length - 1);
+      seek = resumeData.time;
+    }
+    setStatus('');
+    els.reviewResume.style.display = 'none';
+    reviewLoadItem(idx, seek);
+  }
+
+  function saveReviewProgress(force){
+    if(!reviewState || !cur || !cur.review) return;
+    const now = Date.now();
+    if(!force && now - lastReviewSave < 2500) return;
+    lastReviewSave = now;
+    try{
+      localStorage.setItem(REVIEW_KEY, JSON.stringify({
+        fromJuz: reviewState.fromJuz, toJuz: reviewState.toJuz,
+        idx: reviewState.idx, surahId: cur.track.surahId,
+        time: els.audio.currentTime, at: now
+      }));
+    }catch(e){}
+  }
+  function loadReviewProgress(){
+    try{ return JSON.parse(localStorage.getItem(REVIEW_KEY)); }catch(e){ return null; }
+  }
+  function clearReviewProgress(){
+    try{ localStorage.removeItem(REVIEW_KEY); }catch(e){}
+  }
+
+  function prepareReviewSetup(){
+    const saved = loadReviewProgress();
+    if(saved && saved.fromJuz){
+      els.juzFrom.value = saved.fromJuz;
+      els.juzTo.value = saved.toJuz;
+      const nm = (suwarMap[saved.surahId] && suwarMap[saved.surahId].en) || ('Surah ' + saved.surahId);
+      els.reviewResume.querySelector('.txt').textContent =
+        '↻ Resume Juz ' + saved.fromJuz + (saved.toJuz !== saved.fromJuz ? '–' + saved.toJuz : '') +
+        ' · ' + nm + ' ' + fmtTime(saved.time || 0);
+      els.reviewResume.style.display = 'block';
+    } else {
+      els.reviewResume.style.display = 'none';
+      if(!els.juzFrom.value) els.juzFrom.value = 1;
+      if(!els.juzTo.value) els.juzTo.value = 1;
+    }
+  }
+
+  els.reviewStart.addEventListener('click', () => {
+    startReview(els.juzFrom.value, els.juzTo.value, null);
+  });
+  els.reviewResumeBtn.addEventListener('click', () => {
+    const saved = loadReviewProgress();
+    if(saved) startReview(saved.fromJuz, saved.toJuz, saved);
+  });
+  window.addEventListener('pagehide', () => { if(cur && cur.review) saveReviewProgress(true); });
+  document.addEventListener('visibilitychange', () => {
+    if(document.hidden && cur && cur.review) saveReviewProgress(true);
+  });
 
   async function start(){
     if(started) return;
