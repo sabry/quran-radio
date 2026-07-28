@@ -734,6 +734,16 @@
   };
   const QURAN_END = [114, 6];
 
+  // Canonical Hafs ayah counts, indexed by surah number (index 0 unused).
+  // Used to recover the final ayah of surahs whose timing omits it.
+  const SURAH_AYAT = [0,
+    7,286,200,176,120,165,206,75,129,109,123,111,43,52,99,128,111,110,98,135,
+    112,78,118,64,77,227,93,88,69,60,34,30,73,54,45,83,182,88,75,85,
+    54,53,89,59,37,35,38,29,18,45,60,49,62,55,78,96,29,22,24,13,
+    14,11,11,18,12,12,30,52,52,44,28,28,20,56,40,31,50,40,46,42,
+    29,19,36,25,22,17,19,26,30,20,15,21,11,8,8,19,5,8,8,11,
+    11,8,3,9,5,4,7,3,6,3,5,4,5,6];
+
   let mode = 'radio';        // 'radio' | 'friday' | 'review'
   let fridayMode = false;
   let reviewMode = false;
@@ -1004,6 +1014,23 @@
       .filter(a => a.text)
       .sort((a,b) => a.t0 - b.t0);
 
+    // Some timing sets (notably read 74, al-Hudhaifi) omit the last ayah of
+    // most surahs; the reciter still recites it, there's just no marker. Append
+    // any trailing ayat the text has beyond the last timed one so the closing
+    // verse still displays. The first begins exactly where the last timed ayah
+    // ends; its t1 is left null (= "to the end of the audio").
+    if(ayat.length){
+      const last = ayat[ayat.length - 1];
+      const trueLast = SURAH_AYAT[track.surahId] || last.n;
+      let cursor = last.t1 != null ? last.t1 : last.t0;
+      for(let n = last.n + 1; n <= trueLast; n++){
+        const text = textMap.get(track.surahId + ':' + n);
+        if(!text) break;
+        ayat.push({ n, t0: cursor, t1: null, text, synthetic: true });
+        cursor += 4;   // nominal spacing; only affects the rare multi-ayah tail
+      }
+    }
+
     return ayat.length ? { ayat, font: narration.font } : null;
   }
 
@@ -1200,11 +1227,15 @@
     }).catch(() => {});
   }
 
+  // The published timings tend to mark an ayah's start a touch after the reciter
+  // actually begins it, so the text lags the voice by a second or two. Advance
+  // the switch by a small lead so the displayed verse tracks the recitation.
+  const AYAH_LEAD = 1.5;
   function updateAyahForTime(t){
     if(!cur || !cur.ayat) return;
     let found = null;
     for(let i = cur.ayat.length - 1; i >= 0; i--){
-      if(t >= cur.ayat[i].t0){ found = cur.ayat[i]; break; }
+      if(t + AYAH_LEAD >= cur.ayat[i].t0){ found = cur.ayat[i]; break; }
     }
     if(!found || found.n === cur.currentAyah) return;
     cur.currentAyah = found.n;
