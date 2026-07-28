@@ -173,6 +173,67 @@
   }
   .review-resume button:active{ opacity:0.7; }
 
+  .review-only{ display:none; }
+  body.is-review .review-only{ display:inline-flex; }
+
+  .review-queue{ display:none; margin-top:20px; }
+  body.is-review .review-queue{ display:block; }
+  .rq-title{
+    font-size:10.5px;
+    letter-spacing:1.4px;
+    text-transform:uppercase;
+    color:var(--muted);
+    text-align:center;
+    margin-bottom:8px;
+  }
+  .rq-list{
+    max-height:190px;
+    overflow-y:auto;
+    border:1px solid var(--line);
+    border-radius:12px;
+    -webkit-overflow-scrolling:touch;
+  }
+  .rq-empty{
+    padding:14px;
+    text-align:center;
+    color:var(--muted);
+    font-size:12px;
+  }
+  .rq-item{
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+    padding:9px 12px;
+    cursor:pointer;
+    border-bottom:1px solid rgba(255,255,255,0.04);
+    font-size:12.5px;
+    color:var(--parchment);
+  }
+  .rq-item:last-child{ border-bottom:none; }
+  .rq-item:active{ background:rgba(255,255,255,0.05); }
+  .rq-tag{
+    font-size:10px;
+    letter-spacing:0.5px;
+    color:var(--muted);
+    text-transform:uppercase;
+    min-width:42px;
+    font-variant-numeric:tabular-nums;
+  }
+  .rq-name{ flex:1; }
+  .rq-loc{
+    font-family:'Amiri', serif;
+    direction:rtl;
+    color:var(--muted);
+    font-size:12px;
+  }
+  .rq-item.done{ opacity:0.38; }
+  .rq-item.current{
+    background:rgba(201,162,75,0.12);
+  }
+  .rq-item.current .rq-name,
+  .rq-item.current .rq-tag,
+  .rq-item.current .rq-loc{ color:var(--gold); }
+
   .stage{
     position:relative;
     width:100%;
@@ -533,6 +594,9 @@
       </div>
 
       <div class="controls">
+        <button class="icon-btn skip-btn review-only" id="prevRubBtn" aria-label="Previous quarter-hizb">
+          <svg width="22" height="22" viewBox="0 0 24 24"><path d="M18 5L8 12l10 7V5zM6 5v14H4V5h2z" fill="currentColor"/></svg>
+        </button>
         <button class="icon-btn skip-btn" id="rewindBtn" aria-label="Rewind 10 seconds">
           <svg width="22" height="22" viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" fill="currentColor"/><text x="12" y="16.5" text-anchor="middle" font-size="7" font-family="sans-serif" fill="currentColor">10</text></svg>
         </button>
@@ -550,6 +614,11 @@
       </div>
 
       <div class="status" id="status">&nbsp;</div>
+
+      <div class="review-queue" id="reviewQueue">
+        <div class="rq-title">Quarter-ḥizb queue</div>
+        <div class="rq-list" id="reviewQueueList"></div>
+      </div>
     </div>
   </div>
 
@@ -558,7 +627,7 @@
     <p>Each track picks a random riwayah (a canonically transmitted reading of the Qur'an, such as Hafs 'an 'Asim or Warsh 'an Nafi') and then a random reciter who has recorded that riwayah, streaming directly from mp3quran.net's public library. When a surah ends, it automatically moves on to a new random combination.</p>
     <p>The riwayah is not drawn evenly. Hafs 'an 'Asim makes up about four fifths of the library but is deliberately held to around an eighth of the airtime, and the rest is shared among the other readings in a way that favours the rarer ones without letting the handful with a single recording keep returning. In practice the nine rarest qira'at take about a third of the airtime while holding four percent of the recordings.</p>
     <p>Friday mode plays Surat al-Kahf exclusively, following the tradition of reciting it on Fridays, and rotates through the different readings of it rather than through different surahs. The same weighting applies, except for two readings that have no recording of al-Kahf on the library and so sit out this mode. In Friday mode the surah is played whole rather than split into parts.</p>
-    <p>Review mode is for revising a stretch of the Qur'an in order. Enter a starting and ending juz' (both included) and it recites that exact span &mdash; beginning and ending partway through a surah where the juz' boundaries fall &mdash; in Muhammad Siddiq al-Minshawi's measured (murattal) Hafs reading, with the verses shown as they are recited. Passages are broken into quarter-hizb (rub' al-hizb) pieces, and your place is saved continuously, so you can stop and later resume exactly where you left off.</p>
+    <p>Review mode is for revising a stretch of the Qur'an in order. Enter a starting and ending juz' (both included) and it recites that exact span &mdash; beginning and ending partway through a surah where the juz' boundaries fall &mdash; in 'Ali al-Hudhaifi's measured Hafs reading, chosen for its careful tajwid, with the verses shown as they are recited. The passage is divided at quarter-hizb (rub' al-hizb) boundaries, listed as a queue you can tap to jump between; the previous and next buttons step one quarter-hizb at a time, while rewind still goes back ten seconds. Your place is saved continuously, so you can stop and later resume exactly where you left off.</p>
     <p>When the chosen recitation has published ayah timings, the verse being recited appears beneath the surah name, in the mushaf text of that specific riwayah &mdash; Warsh audio is shown against the Warsh mushaf, Qalun against Qalun, and so on, each in the King Fahd Complex's Uthmanic font for that narration. This matters because the readings do not all divide the text the same way: al-Baqarah is 285 verses in Warsh and Qalun but 286 in Hafs and Shu'bah. Recitations without published timings, or in riwayat with no published digital mushaf, simply play without text.</p>
     <p>Long surahs (over ~25 minutes) are automatically split into 15&ndash;20 minute parts, and each part joins the random rotation on its own, so no single track keeps the stream tied up for hours. Where ayah timings exist, these parts begin and end on verse boundaries rather than mid-verse. If the connection drops mid-recitation, the player reconnects and resumes from where it left off.</p>
     <p>Tip: open this page in your phone's browser and use "Add to Home Screen" so it behaves like an app and keeps playing with your screen locked.</p>
@@ -601,15 +670,17 @@
   const KAHF_SURAH = 18;
   const FRIDAY_EXCLUDE = [19, 20];
 
-  // Review mode: sequential recitation of a juz' range in Menshawi's Hafs
-  // murattal (mp3quran timing read 112, full 114-surah mushaf). Unlike Radio
+  // Review mode: sequential recitation of a juz' range in 'Ali al-Hudhaifi's
+  // Hafs (mp3quran timing read 74, full 114-surah mushaf) — chosen for its
+  // meticulous, teaching-grade tajwid at a measured ~2.8 min/page. Unlike Radio
   // and Friday this is an ordered playlist, not a random draw, and it seeks to
   // exact ayah boundaries so a range like juz' 4-6 starts partway into
   // Al-'Imran and stops partway into Al-Ma'idah. Each surah's portion is split
   // at quarter-hizb (rub' al-hizb) boundaries for progress + resume; playback
   // runs continuously across them, and the exact position is saved so a
   // session can be resumed later.
-  const MENSHAWI_SERVER = 'https://server10.mp3quran.net/minsh/';
+  const REVIEW_SERVER = 'https://server9.mp3quran.net/hthfi/';
+  const REVIEW_RECITER_AR = 'علي بن عبدالرحمن الحذيفي';
   const REVIEW_KEY = 'muqri.review.v1';
 
   // The 240 quarter-hizb (rub' al-hizb, ۞) start points, as surah -> [ayahs].
@@ -634,6 +705,22 @@
     69:[1], 70:[19], 72:[1], 73:[20], 75:[1], 76:[19], 78:[1], 80:[1], 82:[1],
     84:[1], 87:[1], 90:[1], 94:[1], 100:[9]
   };
+
+  // Flatten RUB_STARTS into the ordered 240 quarters, numbered 1..240, each with
+  // its juz'/hizb/rub' position. 8 rub' per juz', 4 per hizb.
+  const RUB_TABLE = (() => {
+    const rows = [];
+    Object.keys(RUB_STARTS).map(Number).sort((a,b)=>a-b).forEach(s => {
+      RUB_STARTS[s].forEach(a => rows.push({ surah: s, ayah: a }));
+    });
+    rows.forEach((r, i) => {
+      r.idx = i + 1;                       // 1..240
+      r.juz = Math.ceil(r.idx / 8);        // 1..30
+      r.hizb = Math.ceil(r.idx / 4);       // 1..60
+      r.rub = ((r.idx - 1) % 4) + 1;       // 1..4
+    });
+    return rows;
+  })();
 
   // Standard juz' start points [surah, ayah] (Hafs/Madani numbering, which is
   // what the timing data uses). A range's end is one ayah before the start of
@@ -787,7 +874,10 @@
     juzTo: document.getElementById('juzTo'),
     reviewStart: document.getElementById('reviewStart'),
     reviewResume: document.getElementById('reviewResume'),
-    reviewResumeBtn: document.getElementById('reviewResumeBtn')
+    reviewResumeBtn: document.getElementById('reviewResumeBtn'),
+    prevRubBtn: document.getElementById('prevRubBtn'),
+    reviewQueue: document.getElementById('reviewQueue'),
+    reviewQueueList: document.getElementById('reviewQueueList')
   };
 
   const PAUSE_ICON = '<path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/>';
@@ -1183,7 +1273,7 @@
 
   function skip(){
     setStatus('');
-    if(cur && cur.review){ reviewAdvance(); return; }   // skip = next surah in the range
+    if(cur && cur.review){ nextRub(); return; }   // in review, "next" = next quarter-hizb
     advance();
   }
 
@@ -1208,12 +1298,18 @@
       cur.playStart = cur.reviewSeek != null ? cur.reviewSeek : (cur.startT0 || 0);
       cur.playEnd = cur.endT1 != null ? cur.endT1 : (isFinite(d) ? d : Infinity);
       cur.reviewChunks = buildReviewChunks();
-      cur.chunkIndex = reviewChunkIndexFor(cur.playStart);
-      if(cur.playStart > 0.3 && Math.abs(els.audio.currentTime - cur.playStart) > 1){
-        els.audio.currentTime = cur.playStart;
+      let seekTo = cur.playStart;
+      if(cur.seekLastRub && cur.reviewChunks.length){
+        seekTo = cur.reviewChunks[cur.reviewChunks.length - 1].s;
+      }
+      cur.seekLastRub = false;
+      cur.chunkIndex = reviewChunkIndexFor(seekTo);
+      if(seekTo > 0.3 && Math.abs(els.audio.currentTime - seekTo) > 1){
+        els.audio.currentTime = seekTo;
       }
       cur.reviewSeek = null;
       updateReviewMeta();
+      renderReviewQueue();
       return;
     }
     if(!cur.chunkAssigned){
@@ -1308,6 +1404,7 @@
     if(els.audio.paused) els.audio.play(); else els.audio.pause();
   });
   els.skipBtn.addEventListener('click', skip);
+  els.prevRubBtn.addEventListener('click', prevRub);
   els.rewindBtn.addEventListener('click', rewind);
   els.volume.addEventListener('input', () => { els.audio.volume = Number(els.volume.value); });
   window.addEventListener('resize', () => { if(cur && cur.ayat) fitAyah(); });
@@ -1328,6 +1425,7 @@
       : name === 'review' ? "Review · by juz'"
       : "Random Qira'at Radio";
     els.reviewSetup.style.display = reviewMode ? 'block' : 'none';
+    document.body.classList.toggle('is-review', reviewMode);
     nextTrack = null;
     reviewToken++;              // invalidate any in-flight review load
     if(reviewMode){
@@ -1335,11 +1433,12 @@
       els.audio.pause();
       reviewState = null;
       hideAyahPanel();
+      renderReviewQueue();
       prepareReviewSetup();
       setEyebrow('CHOOSE A RANGE', false);
       els.surahName.textContent = '—';
       els.surahMeta.innerHTML = '&nbsp;';
-      els.reciterName.textContent = 'محمد صديق المنشاوي';
+      els.reciterName.textContent = REVIEW_RECITER_AR;
       els.riwayahName.textContent = "Hafs 'an 'Asim  ·  حفص عن عاصم";
       els.barFill.style.width = '0%';
     } else if(started){
@@ -1384,20 +1483,20 @@
     return items;
   }
 
-  function menshawiTrack(surahId){
+  function reviewTrack(surahId){
     const info = suwarMap[surahId] || { ar: 'سورة ' + surahId, en: 'Surah ' + surahId };
     return {
-      reciterAr: 'محمد صديق المنشاوي',
+      reciterAr: REVIEW_RECITER_AR,
       riwayahId: 1,
       riwayahAr: riwayahArMap[1] || 'حفص عن عاصم',
       riwayahEn: "Hafs 'an 'Asim",
       surahId,
       surahAr: info.ar,
       surahEn: info.en,
-      server: MENSHAWI_SERVER,
+      server: REVIEW_SERVER,
       friday: false,
       review: true,
-      audioUrl: MENSHAWI_SERVER + pad3(surahId) + '.mp3'
+      audioUrl: REVIEW_SERVER + pad3(surahId) + '.mp3'
     };
   }
 
@@ -1447,19 +1546,83 @@
     els.surahMeta.textContent = meta;
   }
 
-  async function reviewLoadItem(idx, seekTime){
+  // The quarter-hizbs covered by the current range. Every juz' is exactly 8
+  // rub', so juz' F..T is global rub' (F-1)*8+1 .. T*8.
+  function reviewQueueRubs(){
+    if(!reviewState) return [];
+    const first = (reviewState.fromJuz - 1) * 8 + 1;
+    const last = reviewState.toJuz * 8;
+    return RUB_TABLE.filter(r => r.idx >= first && r.idx <= last);
+  }
+
+  // The rub' that contains the current playback position (the last rub' whose
+  // start is at or before the current surah+ayah).
+  function currentRub(){
+    if(!cur || !cur.review) return null;
+    const sid = cur.track.surahId;
+    const ay = cur.currentAyah || cur.startAyah || 1;
+    let best = null;
+    for(const r of RUB_TABLE){
+      if(r.surah < sid || (r.surah === sid && r.ayah <= ay)) best = r;
+      else if(r.surah > sid) break;
+    }
+    return best;
+  }
+
+  function renderReviewQueue(){
+    if(!reviewState){ els.reviewQueueList.innerHTML = '<div class="rq-empty">Pick a range to see its quarter-ḥizbs.</div>'; return; }
+    const rubs = reviewQueueRubs();
+    const cr = currentRub();
+    const curIdx = cr ? cr.idx : -1;
+    els.reviewQueueList.innerHTML = rubs.map(r => {
+      const nm = (suwarMap[r.surah] && suwarMap[r.surah].en) || ('Surah ' + r.surah);
+      const cls = r.idx === curIdx ? 'current' : (r.idx < curIdx ? 'done' : '');
+      return '<div class="rq-item ' + cls + '" data-idx="' + r.idx + '">' +
+        '<span class="rq-tag">Juz ' + r.juz + '</span>' +
+        '<span class="rq-name">' + nm + ' ' + r.ayah + '</span>' +
+        '<span class="rq-loc">حزب ' + r.hizb + ' · ربع ' + r.rub + '</span></div>';
+    }).join('');
+    const el = els.reviewQueueList.querySelector('.rq-item.current');
+    if(el) el.scrollIntoView({ block: 'nearest' });
+  }
+
+  // Jump to a specific quarter-hizb from the queue: load the surah it begins in
+  // and seek to its first ayah.
+  function jumpToRub(idx){
+    if(!reviewState) return;
+    const r = RUB_TABLE.find(x => x.idx === idx);
+    if(!r) return;
+    const itemIdx = reviewState.items.findIndex(it => it.surahId === r.surah);
+    if(itemIdx < 0) return;
+    setStatus('');
+    reviewLoadItem(itemIdx, { ayah: r.ayah });
+  }
+
+  els.reviewQueueList.addEventListener('click', e => {
+    const it = e.target.closest('.rq-item');
+    if(it && it.dataset.idx) jumpToRub(+it.dataset.idx);
+  });
+
+  // startAt: a number (seconds to resume at), { lastRub:true } to land on the
+  // final quarter-hizb of the item (stepping backwards into the previous
+  // surah), { ayah:N } to land on a specific ayah (tapping the queue), or null
+  // to begin at the item's juz'-trimmed start.
+  async function reviewLoadItem(idx, startAt){
     if(!reviewState) return;
     const token = ++reviewToken;
     reviewState.idx = idx;
     if(idx >= reviewState.items.length){ reviewComplete(); return; }
     const item = reviewState.items[idx];
-    const track = menshawiTrack(item.surahId);
+    const track = reviewTrack(item.surahId);
     cur = {
       review: true, track, ayat: null, ayahFont: 'hafs18', currentAyah: null,
       startAyah: item.startAyah, endAyah: item.endAyah,
-      reviewSeek: (seekTime != null ? seekTime : null),
+      reviewSeek: (typeof startAt === 'number' ? startAt : null),
+      seekLastRub: !!(startAt && startAt.lastRub),
+      seekAyah: (startAt && startAt.ayah) || null,
       startT0: 0, endT1: null, playStart: 0, playEnd: Infinity,
-      reviewChunks: null, chunkIndex: 0, recoveries: 0, resumeAt: null, token
+      reviewChunks: null, chunkIndex: 0, recoveries: 0, resumeAt: null,
+      _rubIdx: 0, token
     };
     lastPos = 0;
     renderTrack(track);
@@ -1479,6 +1642,11 @@
       if(item.endAyah != null){
         const a = res.ayat.find(x => x.n === item.endAyah);
         if(a) cur.endT1 = a.t1;
+      }
+      if(cur.seekAyah){
+        const a = res.ayat.find(x => x.n === cur.seekAyah);
+        if(a) cur.reviewSeek = a.t0;
+        cur.seekAyah = null;
       }
     }
     els.audio.src = track.audioUrl;
@@ -1505,6 +1673,8 @@
     els.timeElapsed.textContent = fmtTime(rel);
     els.timeTotal.textContent = fmtTime(span);
     updateAyahForTime(t);
+    const cr = currentRub();
+    if(cr && cr.idx !== cur._rubIdx){ cur._rubIdx = cr.idx; renderReviewQueue(); }
     saveReviewProgress(false);
   }
 
@@ -1514,6 +1684,39 @@
     const next = reviewState.idx + 1;
     if(next >= reviewState.items.length){ reviewComplete(); return; }
     await reviewLoadItem(next, null);
+  }
+
+  function nextRub(){
+    if(!cur || !cur.review || !cur.reviewChunks) return;
+    const i = cur.chunkIndex || 0;
+    if(i < cur.reviewChunks.length - 1){
+      els.audio.currentTime = cur.reviewChunks[i + 1].s;
+      if(els.audio.paused) els.audio.play().catch(() => {});
+    } else {
+      reviewAdvance();   // past the last rub' of this surah → next surah's first rub'
+    }
+  }
+
+  function prevRub(){
+    if(!cur || !cur.review || !cur.reviewChunks) return;
+    const i = cur.chunkIndex || 0;
+    const chunkStart = cur.reviewChunks[i].s;
+    if(els.audio.currentTime > chunkStart + 3){
+      els.audio.currentTime = chunkStart;                  // restart current rub'
+    } else if(i > 0){
+      els.audio.currentTime = cur.reviewChunks[i - 1].s;   // previous rub'
+    } else {
+      reviewLoadPrev();                                    // previous surah's last rub'
+      return;
+    }
+    if(els.audio.paused) els.audio.play().catch(() => {});
+  }
+
+  async function reviewLoadPrev(){
+    if(!reviewState) return;
+    const prev = reviewState.idx - 1;
+    if(prev < 0){ els.audio.currentTime = cur.playStart; return; }  // already at the very start
+    await reviewLoadItem(prev, { lastRub: true });
   }
 
   function reviewComplete(){
@@ -1541,6 +1744,7 @@
     }
     setStatus('');
     els.reviewResume.style.display = 'none';
+    renderReviewQueue();
     reviewLoadItem(idx, seek);
   }
 
