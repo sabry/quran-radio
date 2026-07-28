@@ -704,8 +704,11 @@
   // settle on one whose sync they like rather than chasing per-reciter offsets.
   const REVIEW_KEY = 'muqri.review.v1';
   const REVIEW_RECITER_KEY = 'muqri.reviewReciter';
-  const REVIEW_DEFAULT_READ = 74;   // 'Ali al-Hudhaifi
-  const REVIEW_FALLBACK = { id: 74, nameAr: 'علي بن عبدالرحمن الحذيفي', server: 'https://server9.mp3quran.net/hthfi/' };
+  // Reads kept out of the menu: al-Hudhaifi (74) has unreliable ayah marks;
+  // al-'Afasi (123) and al-Sudais (54) excluded by request.
+  const REVIEW_EXCLUDE = [74, 123, 54];
+  const REVIEW_DEFAULT_READ = 30;   // Saad al-Ghamdi
+  const REVIEW_FALLBACK = { id: 30, nameAr: 'سعد الغامدي', server: 'https://server7.mp3quran.net/s_gmd/' };
   let reviewReciters = [];          // [{ id, nameAr, server }], built from the reads list
   let reviewReciterId = (() => {
     try{ const v = parseInt(localStorage.getItem(REVIEW_RECITER_KEY), 10); return v || REVIEW_DEFAULT_READ; }
@@ -999,9 +1002,11 @@
             const k = normServer(r.folder_url);
             if(k && !(k in timingReadIndex)) timingReadIndex[k] = r.id;
           });
-          // The Review reciter menu: every complete Hafs mushaf with timings.
+          // The Review reciter menu: every complete Hafs mushaf with timings,
+          // minus the excluded reads.
           reviewReciters = (reads || [])
-            .filter(r => r.rewaya && r.rewaya.indexOf('حفص') !== -1 && r.soar_count === 114)
+            .filter(r => r.rewaya && r.rewaya.indexOf('حفص') !== -1 && r.soar_count === 114
+              && REVIEW_EXCLUDE.indexOf(r.id) === -1)
             .map(r => ({
               id: r.id,
               nameAr: r.name,
@@ -1367,24 +1372,7 @@
       els.audio.currentTime = t;
       return;
     }
-    if(cur.review){
-      cur.playStart = cur.reviewSeek != null ? cur.reviewSeek : (cur.startT0 || 0);
-      cur.playEnd = cur.endT1 != null ? cur.endT1 : (isFinite(d) ? d : Infinity);
-      cur.reviewChunks = buildReviewChunks();
-      let seekTo = cur.playStart;
-      if(cur.seekLastRub && cur.reviewChunks.length){
-        seekTo = cur.reviewChunks[cur.reviewChunks.length - 1].s;
-      }
-      cur.seekLastRub = false;
-      cur.chunkIndex = reviewChunkIndexFor(seekTo);
-      if(seekTo > 0.3 && Math.abs(els.audio.currentTime - seekTo) > 1){
-        els.audio.currentTime = seekTo;
-      }
-      cur.reviewSeek = null;
-      updateReviewMeta();
-      renderReviewQueue();
-      return;
-    }
+    if(cur.review){ applyReviewTrim(); return; }
     if(!cur.chunkAssigned){
       cur.chunkAssigned = true;
       // Friday mode plays al-Kahf whole, never chunked.
@@ -1473,9 +1461,19 @@
     if(cur && cur.review) saveReviewProgress(true);
   });
 
-  els.playBtn.addEventListener('click', () => {
-    if(els.audio.paused) els.audio.play(); else els.audio.pause();
-  });
+  // Nothing plays until the listener asks for it. The play button both begins
+  // a mode and toggles it thereafter.
+  function togglePlay(){
+    if(!els.audio.paused){ els.audio.pause(); return; }
+    if(cur && els.audio.src){ els.audio.play().catch(() => {}); return; }  // resume current
+    if(reviewMode){
+      if(reviewState){ els.audio.play().catch(() => {}); }
+      else setStatus('Choose a reciter and range, then press Start.');
+      return;
+    }
+    beginRadio();   // radio or friday: start a fresh track
+  }
+  els.playBtn.addEventListener('click', togglePlay);
   els.skipBtn.addEventListener('click', skip);
   els.prevRubBtn.addEventListener('click', prevRub);
   els.rewindBtn.addEventListener('click', rewind);
@@ -1499,13 +1497,20 @@
       : "Random Qira'at Radio";
     els.reviewSetup.style.display = reviewMode ? 'block' : 'none';
     document.body.classList.toggle('is-review', reviewMode);
+    // Switching tabs never auto-plays; it pauses and resets to a ready state,
+    // then waits for the play button (radio/friday) or Start (review).
+    els.audio.pause();
+    els.audio.removeAttribute('src');
     nextTrack = null;
     reviewToken++;              // invalidate any in-flight review load
+    cur = null;
+    hideAyahPanel();
+    els.barFill.style.width = '0%';
+    els.timeElapsed.textContent = '0:00';
+    els.timeTotal.textContent = '0:00';
+    setStatus('');
     if(reviewMode){
-      // Don't auto-start; pause the radio and let the listener pick a range.
-      els.audio.pause();
       reviewState = null;
-      hideAyahPanel();
       renderReviewQueue();
       loadTimingReads().then(populateReciterMenu);
       prepareReviewSetup();
@@ -1514,11 +1519,13 @@
       els.surahMeta.innerHTML = '&nbsp;';
       els.reciterName.textContent = currentReciter().nameAr;
       els.riwayahName.textContent = "Hafs 'an 'Asim  ·  حفص عن عاصم";
-      els.barFill.style.width = '0%';
-    } else if(started){
-      setStatus('');
-      advance();
-      ensureNext();
+    } else {
+      setEyebrow('PRESS PLAY', false);
+      els.surahName.textContent = '—';
+      els.surahMeta.innerHTML = '&nbsp;';
+      els.reciterName.textContent = '—';
+      els.riwayahName.textContent = '—';
+      ensureNext();   // prefetch so the first play is instant
     }
   }
   els.modeRadio.addEventListener('click', () => setMode('radio'));
@@ -1697,13 +1704,17 @@
       seekAyah: (startAt && startAt.ayah) || null,
       startT0: 0, endT1: null, playStart: 0, playEnd: Infinity,
       reviewChunks: null, chunkIndex: 0, recoveries: 0, resumeAt: null,
-      _rubIdx: 0, token
+      ayatReady: false, trimApplied: false, _rubIdx: 0, token
     };
     lastPos = 0;
     renderTrack(track);
     hideAyahPanel();
-    setEyebrow('LOADING…', true);
-    // Fetch timing + text before playing so we can trim to juz' boundaries.
+    setEyebrow('NOW REVIEWING', false);
+    // Start playing immediately so the user gesture that triggered this isn't
+    // lost (mobile autoplay rules), then fetch timing + text and trim to the
+    // juz' boundary once both the audio metadata and the ayat are ready.
+    els.audio.src = track.audioUrl;
+    els.audio.play().then(() => updateMediaSession(track)).catch(() => {});
     let res = null;
     try{ res = await buildAyat(track); }catch(e){}
     if(!cur || cur.token !== token) return;   // switched away while loading
@@ -1724,9 +1735,31 @@
         cur.seekAyah = null;
       }
     }
-    els.audio.src = track.audioUrl;
-    setEyebrow('NOW REVIEWING', false);
-    try{ await els.audio.play(); updateMediaSession(track); }catch(e){}
+    cur.ayatReady = true;
+    applyReviewTrim();
+  }
+
+  // Trim the current surah's audio to the juz'-boundary window and split it
+  // into rub' pieces. Needs both the audio metadata (duration) and the ayat;
+  // it's called from whichever of the two arrives last, and seeks only once.
+  function applyReviewTrim(){
+    if(!cur || !cur.review) return;
+    const d = els.audio.duration;
+    if(!isFinite(d) || d <= 0) return;   // metadata not ready yet
+    if(!cur.ayatReady) return;           // timing/text not ready yet
+    cur.playStart = cur.reviewSeek != null ? cur.reviewSeek : (cur.startT0 || 0);
+    cur.playEnd = cur.endT1 != null ? cur.endT1 : d;
+    cur.reviewChunks = buildReviewChunks();
+    let seekTo = cur.playStart;
+    if(cur.seekLastRub && cur.reviewChunks.length) seekTo = cur.reviewChunks[cur.reviewChunks.length - 1].s;
+    cur.seekLastRub = false;
+    cur.chunkIndex = reviewChunkIndexFor(seekTo);
+    if(!cur.trimApplied){
+      cur.trimApplied = true;
+      if(seekTo > 0.3 && Math.abs(els.audio.currentTime - seekTo) > 1) els.audio.currentTime = seekTo;
+    }
+    updateReviewMeta();
+    renderReviewQueue();
   }
 
   function handleReviewTimeupdate(d){
@@ -1893,11 +1926,24 @@
     if(document.hidden && cur && cur.review) saveReviewProgress(true);
   });
 
-  async function start(){
-    if(started) return;
+  // Radio/Friday: begin a fresh track. Called from the play button (a user
+  // gesture, so audio is allowed to start).
+  async function beginRadio(){
     started = true;
-    document.getElementById('startOverlay').remove();
-    setEyebrow('TUNING IN…', true);
+    setEyebrow('FINDING RECITATION…', true);
+    let t = nextTrack;
+    nextTrack = null;
+    if(!t) t = await fetchTrackCandidate();
+    if(t){ await playTrack(t); }
+    else {
+      setEyebrow('CONNECTION TROUBLE', false);
+      setStatus('Could not find a track to play. Check your connection and try again.');
+    }
+  }
+
+  // Load metadata up front (no audio yet) so the app opens straight to the
+  // tabs, ready to play the moment the listener presses play or picks a range.
+  async function init(){
     loadTimingReads();
     try{
       await loadMeta();
@@ -1906,26 +1952,10 @@
       setStatus('Could not reach mp3quran.net. Check your connection and reload.');
       return;
     }
-    const t = await fetchTrackCandidate();
-    if(t){ await playTrack(t); }
-    else {
-      setEyebrow('CONNECTION TROUBLE', false);
-      setStatus('Could not find a track to play. Reload and try again.');
-    }
+    setEyebrow('PRESS PLAY', false);
+    ensureNext();   // prefetch a first radio track so play is instant
   }
-
-  // Start overlay (audio requires a user gesture on mobile browsers)
-  const overlay = document.createElement('div');
-  overlay.className = 'overlay';
-  overlay.id = 'startOverlay';
-  overlay.innerHTML =
-    '<div class="name">مقرئ</div>' +
-    '<div class="latin">Muqriʼ</div>' +
-    '<div class="sub">A random reciter, a random qira\'ah, every time. Tap to begin an endless stream.</div>' +
-    '<button class="start-btn" id="startBtn">Begin Listening</button>' +
-    '<div class="hint">Streams directly from mp3quran.net</div>';
-  document.body.appendChild(overlay);
-  document.getElementById('startBtn').addEventListener('click', start);
+  init();
 
 })();
 </script>
