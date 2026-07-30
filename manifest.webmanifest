@@ -1,0 +1,19 @@
+{
+  "name": "Muqriʼ — Qur'an Radio",
+  "short_name": "Muqriʼ",
+  "description": "A random reciter and qira'ah every time, a Friday Al-Kahf mode, and a juz'-by-juz' review with verses synced to the recitation.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0E1A1C",
+  "theme_color": "#0E1A1C",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["education", "lifestyle", "music"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
