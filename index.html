@@ -249,7 +249,7 @@
   body.is-matn .matn-reader{ display:block; }
   .matn-scroll{
     position:absolute;
-    left:8px; right:8px; top:0;
+    left:8px; right:34px; top:0;
     will-change:transform;
   }
   .matn-line{
@@ -274,10 +274,13 @@
   .matn-line.current{ color:var(--parchment); opacity:1; }
   .matn-slider{
     display:none;
-    width:100%;
-    margin:6px 0 0;
+    position:absolute;
+    right:3px; top:5%;
+    height:90%; width:24px;
+    writing-mode:vertical-lr;
     accent-color:var(--gold);
-    cursor:ew-resize;
+    cursor:ns-resize;
+    background:transparent;
   }
   body.is-matn .matn-slider{ display:block; }
   .matn-hint{
@@ -717,9 +720,9 @@
 
       <div class="matn-reader" id="matnReader">
         <div class="matn-scroll" id="matnScroll"></div>
+        <input type="range" class="matn-slider" id="matnSlider" min="0" max="1000" value="0" orient="vertical" aria-label="Scroll text">
       </div>
-      <input type="range" class="matn-slider" id="matnSlider" min="0" max="1000" value="0" aria-label="Scroll text">
-      <div class="matn-hint">Slide to scroll the text · it also follows the recitation</div>
+      <div class="matn-hint">Slide the bar to scroll · the text also follows the recitation</div>
 
       <div class="divider"></div>
 
@@ -1112,6 +1115,7 @@
   let matnShownLine = -1;   // line the reader is currently scrolled to
   let matnOffset = 0;       // text position relative to audio, in abyat (manual)
   let matnDragging = false;
+  let matnRaf = null;       // requestAnimationFrame id for the smooth scroll
 
   const PAUSE_ICON = '<path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/>';
   const PLAY_ICON = '<path d="M8 5v14l11-7z" fill="currentColor"/>';
@@ -1647,7 +1651,9 @@
     els.playIcon.innerHTML = PAUSE_ICON;
     els.rosette.classList.add('breathe');
     if('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+    if(cur && cur.matn) startMatnTick();
   });
+  els.audio.addEventListener('seeked', () => { if(cur && cur.matn) matnScrollNow(); });
   els.audio.addEventListener('pause', () => {
     els.playIcon.innerHTML = PLAY_ICON;
     els.rosette.classList.remove('breathe');
@@ -1794,7 +1800,7 @@
     lastPos = 0;
     hideAyahPanel();
     matnOffset = 0; matnShownLine = from;
-    matnScrollToPos(from, false);   // position the reader at this chapter's first bayt
+    matnScrollToPos(from);   // position the reader at this chapter's first bayt
     matnSetSlider(from);
     els.eyebrow.textContent = 'الشاطبية';
     els.eyebrow.classList.remove('loading');
@@ -1826,7 +1832,8 @@
       if(cur.playStart > 0.3 && Math.abs(els.audio.currentTime - cur.playStart) > 1) els.audio.currentTime = cur.playStart;
     }
     cur.seekTime = null;
-    updateMatnForTime(els.audio.currentTime);
+    matnScrollNow();
+    startMatnTick();
   }
 
   function baytAtTime(t){
@@ -1852,18 +1859,17 @@
     els.matnSlider.value = 0; matnOffset = 0;
   }
 
-  // Scroll so global bayt `bayt` (may be fractional) sits ~38% down the reader.
-  // `smooth` glides (auto-advance); off is instant (live slider drag). Uses
-  // element offsets so lines of different heights are handled correctly.
-  function matnScrollToPos(bayt, smooth){
+  // Scroll so global bayt `bayt` (fractional) sits ~38% down the reader. Called
+  // ~60x/sec from the animation loop, so no CSS transition — the smoothness is
+  // the continuous position itself. Uses element offsets for variable heights.
+  function matnScrollToPos(bayt){
     if(!matnLines.length || !matnState) return;
-    let idxf = Math.max(0, Math.min(matnLines.length - 1, bayt - matnState.from));
+    const idxf = Math.max(0, Math.min(matnLines.length - 1, bayt - matnState.from));
     const i = Math.floor(idxf), frac = idxf - i;
     const a = matnLines[i], b = matnLines[i + 1];
     const cA = a.offsetTop + a.offsetHeight / 2;
     const cB = b ? b.offsetTop + b.offsetHeight / 2 : cA + a.offsetHeight;
     const centre = cA + (cB - cA) * frac;
-    els.matnScroll.style.transition = smooth ? 'transform 0.55s cubic-bezier(.4,0,.2,1)' : 'none';
     els.matnScroll.style.transform = 'translateY(' + (els.matnReader.clientHeight * 0.38 - centre) + 'px)';
     const idx = Math.min(matnLines.length - 1, Math.round(idxf));
     if(idx !== matnCurLine){
@@ -1876,24 +1882,26 @@
     const span = (matnState.to - matnState.from) || 1;
     els.matnSlider.value = Math.round(((bayt - matnState.from) / span) * 1000);
   }
-  function matnRescroll(smooth){ matnScrollToPos(matnShownLine >= 0 ? matnShownLine : matnState.from, smooth); }
 
-  // Text position = audio position + manual offset. Advance (or rewind) the
-  // reader whenever the audio crosses a bayt boundary, in either direction, so
-  // the text follows a rewind too. Holds still between abyat, then glides.
-  function updateMatnForTime(t){
-    if(!cur || !cur.matn || !cur.perBayt || !matnState) return;
-    const audioBayt = cur.row[1] + t / cur.perBayt;
+  // Position the reader from the audio clock: a constant, smooth scroll at the
+  // recitation's pace (one bayt per perBayt seconds), plus the manual offset the
+  // slider/tap set. Following the audio clock means rewind scrolls back too.
+  function matnScrollNow(){
+    if(!cur || !cur.matn || !cur.perBayt || !matnState || matnDragging) return;
+    const audioBayt = cur.row[1] + els.audio.currentTime / cur.perBayt;
     cur.audioBayt = audioBayt;
     cur.curBayt = Math.min(cur.row[2], Math.max(cur.row[1], Math.floor(audioBayt + 0.001)));
     const textBayt = Math.max(matnState.from, Math.min(matnState.to, audioBayt + matnOffset));
-    const line = Math.floor(textBayt + 0.001);
-    if(line !== matnShownLine){
-      matnShownLine = line;
-      matnScrollToPos(line, true);
-      if(!matnDragging) matnSetSlider(line);
-    }
+    matnShownLine = Math.floor(textBayt + 0.001);
+    matnScrollToPos(textBayt);
+    matnSetSlider(textBayt);
   }
+  function matnTick(){
+    if(!cur || !cur.matn || els.audio.paused){ matnRaf = null; return; }
+    matnScrollNow();
+    matnRaf = requestAnimationFrame(matnTick);
+  }
+  function startMatnTick(){ if(!matnRaf) matnRaf = requestAnimationFrame(matnTick); }
 
   function handleMatnTimeupdate(d){
     const t = els.audio.currentTime;
@@ -1918,7 +1926,7 @@
     els.barFill.style.width = (rel / span * 100) + '%';
     els.timeElapsed.textContent = fmtTime(rel);
     els.timeTotal.textContent = fmtTime(span);
-    updateMatnForTime(t);
+    startMatnTick();     // the smooth scroll runs on its own animation loop
     saveMatnProgress(false);
   }
 
@@ -2515,7 +2523,7 @@
     const bayt = matnState.from + (Number(els.matnSlider.value) / 1000) * (matnState.to - matnState.from);
     matnOffset = bayt - (cur && cur.matn && cur.audioBayt != null ? cur.audioBayt : matnState.from);
     matnShownLine = Math.floor(bayt + 0.001);
-    matnScrollToPos(bayt, false);
+    matnScrollToPos(bayt);   // follow the slider immediately
   }
   els.matnSlider.addEventListener('input', matnSliderDrag);
   els.matnSlider.addEventListener('change', () => { matnDragging = false; });
@@ -2524,11 +2532,9 @@
     if(!ln || !ln.dataset.bayt || !cur || !cur.matn || cur.audioBayt == null) return;
     // Tap the line you hear: aligns the text to it, audio untouched.
     matnOffset = (+ln.dataset.bayt) - cur.audioBayt;
-    matnShownLine = +ln.dataset.bayt;
-    matnScrollToPos(matnShownLine, true);
-    matnSetSlider(matnShownLine);
+    matnScrollNow();
   });
-  window.addEventListener('resize', () => { if(cur && cur.matn) matnRescroll(false); });
+  window.addEventListener('resize', () => { if(cur && cur.matn) matnScrollNow(); });
   window.addEventListener('pagehide', () => {
     if(cur && cur.review) saveReviewProgress(true);
     if(cur && cur.matn) saveMatnProgress(true);
