@@ -712,7 +712,7 @@
     <p>The riwayah is not drawn evenly. Hafs 'an 'Asim makes up about four fifths of the library but is deliberately held to around an eighth of the airtime, and the rest is shared among the other readings in a way that favours the rarer ones without letting the handful with a single recording keep returning. In practice the nine rarest qira'at take about a third of the airtime while holding four percent of the recordings.</p>
     <p>Friday mode plays Surat al-Kahf exclusively, following the tradition of reciting it on Fridays, and rotates through the different readings of it rather than through different surahs. The same weighting applies, except for two readings that have no recording of al-Kahf on the library and so sit out this mode. In Friday mode the surah is played whole rather than split into parts.</p>
     <p>Review mode is for revising a stretch of the Qur'an in order. Choose a reciter and enter a starting and ending juz' (both included), and it recites that exact span &mdash; beginning and ending partway through a surah where the juz' boundaries fall &mdash; with the verses shown as they are recited. The reciter menu lists every Hafs reciter on the library who has both a complete recording and published verse timings; since different reciters' timing marks are placed with differing precision, you can settle on whichever one tracks the text best for you. The passage is divided at quarter-hizb (rub' al-hizb) boundaries, listed as a queue you can tap to jump between; the previous and next buttons step one quarter-hizb at a time, while rewind still goes back ten seconds. Your place is saved continuously, so you can stop and later resume exactly where you left off.</p>
-    <p>Matn mode is for memorising the Shāṭibiyyah (Ḥirz al-Amānī), the 1173-line poem on the seven readings. Enter a range of abyāt and it recites them in Ayman al-Suwayd's voice, with the bayt shown as it is recited and a tappable list of the range. Because the recitation is split by chapter rather than by line, the highlight is approximate — each chapter's audio is divided evenly across its abyāt — but the previous and next buttons step one bayt at a time to keep it locked, and your place is saved so you can resume. The text is drawn from surahquran.net and the audio streams from the Internet Archive.</p>
+    <p>Matn mode is for memorising the Shāṭibiyyah (Ḥirz al-Amānī), the 1173-line poem on the seven readings. Enter a range of abyāt and it chants them in Muhammad al-Munshid's melodic recitation, with the bayt shown as it is recited and a tappable list of the range. Because the recitation is split by chapter rather than by line, the highlight is approximate — each chapter's audio is divided evenly across its abyāt, which tracks reasonably given the even metrical pace — and the previous and next buttons step one bayt at a time to keep it locked. Your place is saved so you can resume. The text is drawn from surahquran.net and the audio streams from the Internet Archive.</p>
     <p>When the chosen recitation has published ayah timings, the verse being recited appears beneath the surah name, in the mushaf text of that specific riwayah &mdash; Warsh audio is shown against the Warsh mushaf, Qalun against Qalun, and so on, each in the King Fahd Complex's Uthmanic font for that narration. This matters because the readings do not all divide the text the same way: al-Baqarah is 285 verses in Warsh and Qalun but 286 in Hafs and Shu'bah. Recitations without published timings, or in riwayat with no published digital mushaf, simply play without text.</p>
     <p>Long surahs (over ~25 minutes) are automatically split into 15&ndash;20 minute parts, and each part joins the random rotation on its own, so no single track keeps the stream tied up for hours. Where ayah timings exist, these parts begin and end on verse boundaries rather than mid-verse. If the connection drops mid-recitation, the player reconnects and resumes from where it left off.</p>
     <p>Tip: open this page in your phone's browser and use "Add to Home Screen" so it behaves like an app and keeps playing with your screen locked.</p>
@@ -848,14 +848,20 @@
   // --- Shatibiyya (matn memorisation) -------------------------------------
   // Text (1173 abyat) is fetched at runtime from surahquran.net and parsed by
   // bayt number, so the vowelled text stays byte-exact rather than transcribed.
-  // Audio is Ayman Suwayd's recitation on the Internet Archive, split by
-  // chapter (bab). SHAT_MAP aligns each chapter to its audio file and bayt
-  // range: [audioFileNumber, firstBayt, lastBayt, durationSeconds]. audio 0 =
-  // no recording (the closing khatimah). Playback even-divides a file's
-  // duration across its abyat to follow along — approximate, but the prev/next
-  // buttons step one bayt at a time to keep it locked.
-  const SHAT_SERVER = 'https://archive.org/download/sh-ayman-sowaid-matn-ashshatebiih/';
+  // Audio is Muhammad al-Munshid's chanted (melodic) recitation on the Internet
+  // Archive, split by chapter (bab). SHAT_MAP aligns each chapter to a bayt
+  // range and a chapter number: [chapterNumber, firstBayt, lastBayt, durSec].
+  // The number was built for Suwayd's set; al-Munshid's file numbers run one
+  // lower and have descriptive names, so they're resolved from the item
+  // metadata at runtime via shatAudioUrl(). chapter 0 = no recording (khatimah).
+  // A melodic reciter's pace is even per bayt, so dividing a chapter's duration
+  // across its abyat follows along reasonably; prev/next step one bayt to lock.
+  const MATN_META_URL = 'https://archive.org/metadata/ramy_30';
+  const MATN_BASE = 'https://archive.org/download/ramy_30/';
+  const MATN_RECITER_AR = 'محمد المنشد';
   const SHAT_TEXT_URL = 'https://surahquran.com/Tajweed/alshatibieah.html';
+  let shatAudioUrls = null;    // { fileNumber: url }
+  let shatAudioPromise = null;
   const SHAT_KEY = 'muqri.matn.v1';
   const SHAT_TOTAL = 1173;
   const SHAT_MAP = [
@@ -1646,6 +1652,30 @@
     return shatTextPromise;
   }
 
+  // Resolve al-Munshid's descriptive filenames -> URLs, keyed by file number.
+  function loadShatAudio(){
+    if(shatAudioPromise) return shatAudioPromise;
+    shatAudioPromise = (async () => {
+      let meta = null;
+      for(const wrap of CORS_PROXIES){
+        try{ const r = await fetch(wrap(MATN_META_URL)); if(r.ok){ meta = await r.json(); break; } }catch(e){}
+      }
+      if(!meta || !meta.files) throw new Error('audio index unavailable');
+      const map = {};
+      meta.files.forEach(f => {
+        if(/\.mp3$/i.test(f.name)){
+          const n = +((f.name.match(/^(\d+)/) || [])[1]);
+          if(n) map[n] = MATN_BASE + encodeURIComponent(f.name);
+        }
+      });
+      shatAudioUrls = map;
+      return map;
+    })().catch(e => { shatAudioPromise = null; throw e; });
+    return shatAudioPromise;
+  }
+  function loadMatn(){ return Promise.all([loadShatText(), loadShatAudio()]); }
+  function shatAudioUrl(suwaydIdx){ return shatAudioUrls ? shatAudioUrls[suwaydIdx - 1] : null; }
+
   function shatRowTitle(row){
     return (shatTitles && shatTitles[row[1]]) || ('الأبيات ' + row[1] + '–' + row[2]);
   }
@@ -1678,6 +1708,8 @@
     matnState.idx = idx;
     if(idx >= matnState.rows.length){ matnComplete(); return; }
     const row = matnState.rows[idx];
+    const url = shatAudioUrl(row[0]);
+    if(!url){ matnAdvance(); return; }   // no recording for this chapter
     const from = Math.max(matnState.from, row[1]);
     const to = Math.min(matnState.to, row[2]);
     cur = {
@@ -1688,14 +1720,14 @@
       seekBayt: (seekTime && seekTime.bayt) || null,
       seekLast: !!(seekTime && seekTime.last),
       recoveries: 0, resumeAt: null, token,
-      track: { audioUrl: SHAT_SERVER + pad2(row[0]) + '.mp3' }
+      track: { audioUrl: url }
     };
     lastPos = 0;
     hideAyahPanel();
     els.eyebrow.textContent = 'الشاطبية';
     els.eyebrow.classList.remove('loading');
     els.surahName.textContent = shatRowTitle(row);
-    els.reciterName.textContent = 'أيمن رشدي سويد';
+    els.reciterName.textContent = 'محمد المنشد';
     els.riwayahName.textContent = "Ash-Shāṭibiyyah  ·  الشاطبية";
     els.audio.src = cur.track.audioUrl;
     els.audio.play().then(() => updateMatnMedia()).catch(() => {});
@@ -1837,7 +1869,7 @@
   function updateMatnMedia(){
     if(!('mediaSession' in navigator) || !cur || !cur.matn) return;
     navigator.mediaSession.metadata = new MediaMetadata({
-      title: shatRowTitle(cur.row), artist: 'أيمن رشدي سويد', album: 'الشاطبية'
+      title: shatRowTitle(cur.row), artist: 'محمد المنشد', album: 'الشاطبية'
     });
     navigator.mediaSession.setActionHandler('play', () => els.audio.play());
     navigator.mediaSession.setActionHandler('pause', () => els.audio.pause());
@@ -1924,13 +1956,13 @@
       matnState = null;
       els.surahName.textContent = '—';
       els.surahMeta.innerHTML = '&nbsp;';
-      els.reciterName.textContent = 'أيمن رشدي سويد';
+      els.reciterName.textContent = 'محمد المنشد';
       els.riwayahName.textContent = "Ash-Shāṭibiyyah  ·  الشاطبية";
       setEyebrow('LOADING MATN…', true);
       matnRenderQueue();
-      loadShatText()
+      loadMatn()
         .then(() => { setEyebrow('CHOOSE ABYĀT', false); prepareMatnSetup(); matnRenderQueue(); })
-        .catch(() => { setEyebrow('CONNECTION TROUBLE', false); setStatus('Could not load the matn text. Check your connection.'); });
+        .catch(() => { setEyebrow('CONNECTION TROUBLE', false); setStatus('Could not load the matn. Check your connection.'); });
     } else {
       setEyebrow('PRESS PLAY', false);
       els.surahName.textContent = '—';
@@ -2336,15 +2368,15 @@
   });
 
   els.matnStart.addEventListener('click', () => {
-    if(shatAyat) startMatn(+els.matnFrom.value, +els.matnTo.value, null);   // sync: keep the gesture
-    else loadShatText().then(() => startMatn(+els.matnFrom.value, +els.matnTo.value, null))
-      .catch(() => setStatus('Could not load the matn text.'));
+    if(shatAyat && shatAudioUrls) startMatn(+els.matnFrom.value, +els.matnTo.value, null);   // sync: keep the gesture
+    else loadMatn().then(() => startMatn(+els.matnFrom.value, +els.matnTo.value, null))
+      .catch(() => setStatus('Could not load the matn.'));
   });
   els.matnResumeBtn.addEventListener('click', () => {
     const saved = loadMatnProgress();
     if(!saved) return;
-    if(shatAyat) startMatn(saved.from, saved.to, saved);
-    else loadShatText().then(() => startMatn(saved.from, saved.to, saved)).catch(() => {});
+    if(shatAyat && shatAudioUrls) startMatn(saved.from, saved.to, saved);
+    else loadMatn().then(() => startMatn(saved.from, saved.to, saved)).catch(() => {});
   });
   els.matnQueueList.addEventListener('click', e => {
     const it = e.target.closest('.rq-item');
