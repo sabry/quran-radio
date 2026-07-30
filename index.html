@@ -228,12 +228,77 @@
 
   .review-queue{ display:none; margin-top:20px; }
   body.is-review #reviewQueue{ display:block; }
-  body.is-matn #matnQueue{ display:block; }
   .matn-half{
     display:block;
     line-height:1.9;
   }
   .matn-half + .matn-half{ margin-top:2px; }
+
+  /* Matn reader: text auto-scrolls at the recitation's average pace; the side
+     slider nudges the offset to correct drift, and tapping a line re-syncs. */
+  .matn-reader{
+    display:none;
+    position:relative;
+    height:46vh;
+    max-height:360px;
+    overflow:hidden;
+    margin:14px 0 4px;
+    -webkit-mask-image:linear-gradient(180deg, transparent, #000 18%, #000 82%, transparent);
+    mask-image:linear-gradient(180deg, transparent, #000 18%, #000 82%, transparent);
+  }
+  body.is-matn .matn-reader{ display:block; }
+  .matn-scroll{
+    position:absolute;
+    left:36px; right:8px; top:0;
+    will-change:transform;
+  }
+  .matn-line{
+    font-family:'Amiri', serif;
+    direction:rtl;
+    text-align:center;
+    padding:8px 6px;
+    font-size:19px;
+    line-height:1.65;
+    color:var(--muted);
+    opacity:0.45;
+    cursor:pointer;
+    transition:opacity 0.25s ease, color 0.25s ease;
+  }
+  .matn-line .h{ display:block; }
+  .matn-line .n{
+    font-family:'Work Sans', sans-serif;
+    font-size:10px;
+    color:var(--muted);
+    opacity:0.6;
+  }
+  .matn-line.current{ color:var(--parchment); opacity:1; }
+  .matn-nowline{
+    position:absolute;
+    left:34px; right:6px; top:50%;
+    height:0;
+    border-top:1px solid var(--gold-soft);
+    pointer-events:none;
+  }
+  .matn-slider{
+    position:absolute;
+    left:2px; top:10%;
+    height:80%;
+    width:26px;
+    writing-mode:vertical-lr;
+    direction:rtl;
+    -webkit-appearance:slider-vertical;
+    accent-color:var(--gold);
+    cursor:ns-resize;
+    background:transparent;
+  }
+  .matn-hint{
+    text-align:center;
+    font-size:10.5px;
+    color:var(--muted);
+    letter-spacing:0.4px;
+    margin-top:2px;
+  }
+  body:not(.is-matn) .matn-hint{ display:none; }
   .rq-title{
     font-size:10.5px;
     letter-spacing:1.4px;
@@ -661,6 +726,13 @@
         <div class="ayah-num" id="ayahNum"></div>
       </div>
 
+      <div class="matn-reader" id="matnReader">
+        <div class="matn-scroll" id="matnScroll"></div>
+        <div class="matn-nowline"></div>
+        <input type="range" class="matn-slider" id="matnSlider" min="-60" max="60" value="0" aria-label="Nudge position">
+      </div>
+      <div class="matn-hint">Slider nudges alignment · tap a line to re-sync</div>
+
       <div class="divider"></div>
 
       <div class="reciter" id="reciterName">—</div>
@@ -1042,8 +1114,14 @@
     matnStart: document.getElementById('matnStart'),
     matnResume: document.getElementById('matnResume'),
     matnResumeBtn: document.getElementById('matnResumeBtn'),
-    matnQueueList: document.getElementById('matnQueueList')
+    matnQueueList: document.getElementById('matnQueueList'),
+    matnReader: document.getElementById('matnReader'),
+    matnScroll: document.getElementById('matnScroll'),
+    matnSlider: document.getElementById('matnSlider')
   };
+  let matnLines = [];       // DOM .matn-line elements for the current range
+  let matnCurLine = -1;
+  let matnOffset = 0;       // manual nudge, in abyat (from the side slider)
 
   const PAUSE_ICON = '<path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/>';
   const PLAY_ICON = '<path d="M8 5v14l11-7z" fill="currentColor"/>';
@@ -1699,6 +1777,7 @@
     }
     els.matnResume.style.display = 'none';
     setStatus('');
+    matnBuildReader();
     matnLoadRow(idx, seek);
   }
 
@@ -1724,6 +1803,8 @@
     };
     lastPos = 0;
     hideAyahPanel();
+    matnOffset = 0; els.matnSlider.value = 0;
+    matnScrollToPos(from);   // position the reader at this chapter's first bayt
     els.eyebrow.textContent = 'الشاطبية';
     els.eyebrow.classList.remove('loading');
     els.surahName.textContent = shatRowTitle(row);
@@ -1763,27 +1844,50 @@
     return Math.min(cur.row[2], Math.max(cur.row[1], b));
   }
 
-  function showBayt(n){
-    if(!shatAyat || !shatAyat[n]) return;
-    const a = shatAyat[n];
-    els.ayahText.classList.add('fading');
-    setTimeout(() => {
-      if(!cur || !cur.matn || cur.curBayt !== n) return;
-      els.ayahText.style.fontFamily = '"Amiri", serif';
-      els.ayahText.innerHTML = a.ajz
-        ? '<span class="matn-half">' + a.sadr + '</span><span class="matn-half">' + a.ajz + '</span>'
-        : '<span class="matn-half">' + a.sadr + '</span>';
-      els.ayahNum.textContent = 'Bayt ' + n + ' of ' + SHAT_TOTAL;
-      fitAyah();
-      els.ayahText.classList.remove('fading');
-      els.ayahPanel.classList.add('show');
-    }, 160);
+  // Render every bayt of the chosen range as a scrollable column.
+  function matnBuildReader(){
+    if(!matnState || !shatAyat){ els.matnScroll.innerHTML = ''; matnLines = []; return; }
+    let html = '';
+    for(let n = matnState.from; n <= matnState.to; n++){
+      const a = shatAyat[n] || { sadr: '', ajz: '' };
+      html += '<div class="matn-line" data-bayt="' + n + '">' +
+        '<span class="h">' + a.sadr + '</span>' +
+        (a.ajz ? '<span class="h">' + a.ajz + '</span>' : '') +
+        '<span class="n">' + n + '</span></div>';
+    }
+    els.matnScroll.innerHTML = html;
+    matnLines = Array.prototype.slice.call(els.matnScroll.querySelectorAll('.matn-line'));
+    matnCurLine = -1;
+    els.matnSlider.value = 0; matnOffset = 0;
+  }
+
+  // Position the scroll so the (continuous, fractional) bayt sits on the centre
+  // line, plus the manual nudge offset. Uses element offsets so lines of
+  // different heights are handled correctly.
+  function matnScrollToPos(cont){
+    if(!matnLines.length || !matnState) return;
+    let pos = (cont - matnState.from) + matnOffset;
+    pos = Math.max(0, Math.min(matnLines.length - 1, pos));
+    const i = Math.floor(pos), frac = pos - i;
+    const a = matnLines[i], b = matnLines[i + 1];
+    const cA = a.offsetTop + a.offsetHeight / 2;
+    const cB = b ? b.offsetTop + b.offsetHeight / 2 : cA + a.offsetHeight;
+    const centre = cA + (cB - cA) * frac;
+    els.matnScroll.style.transform = 'translateY(' + (els.matnReader.clientHeight / 2 - centre) + 'px)';
+    const idx = Math.min(matnLines.length - 1, Math.round(pos));
+    if(idx !== matnCurLine){
+      if(matnLines[matnCurLine]) matnLines[matnCurLine].classList.remove('current');
+      matnLines[idx].classList.add('current');
+      matnCurLine = idx;
+    }
   }
 
   function updateMatnForTime(t){
-    if(!cur || !cur.matn) return;
-    const n = baytAtTime(t);
-    if(n !== cur.curBayt){ cur.curBayt = n; showBayt(n); matnRenderQueue(); }
+    if(!cur || !cur.matn || !cur.perBayt) return;
+    const cont = cur.row[1] + t / cur.perBayt;   // continuous, fractional bayt
+    cur.contBayt = cont;
+    cur.curBayt = Math.min(cur.row[2], Math.max(cur.row[1], Math.floor(cont + 0.001)));
+    matnScrollToPos(cont);
   }
 
   function handleMatnTimeupdate(d){
@@ -2397,6 +2501,15 @@
     const it = e.target.closest('.rq-item');
     if(it && it.dataset.bayt) matnJumpTo(+it.dataset.bayt);
   });
+  els.matnSlider.addEventListener('input', () => {
+    matnOffset = Number(els.matnSlider.value) / 15;   // ±4 abyat of nudge
+    if(cur && cur.matn) matnScrollToPos(cur.contBayt != null ? cur.contBayt : cur.rowFrom);
+  });
+  els.matnScroll.addEventListener('click', e => {
+    const ln = e.target.closest('.matn-line');
+    if(ln && ln.dataset.bayt){ els.matnSlider.value = 0; matnOffset = 0; matnJumpTo(+ln.dataset.bayt); }
+  });
+  window.addEventListener('resize', () => { if(cur && cur.matn && cur.contBayt != null) matnScrollToPos(cur.contBayt); });
   window.addEventListener('pagehide', () => {
     if(cur && cur.review) saveReviewProgress(true);
     if(cur && cur.matn) saveMatnProgress(true);
