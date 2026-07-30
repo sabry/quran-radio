@@ -223,10 +223,17 @@
   .review-resume button:active{ opacity:0.7; }
 
   .review-only{ display:none; }
-  body.is-review .review-only{ display:inline-flex; }
+  body.is-review .review-only,
+  body.is-matn .review-only{ display:inline-flex; }
 
   .review-queue{ display:none; margin-top:20px; }
-  body.is-review .review-queue{ display:block; }
+  body.is-review #reviewQueue{ display:block; }
+  body.is-matn #matnQueue{ display:block; }
+  .matn-half{
+    display:block;
+    line-height:1.9;
+  }
+  .matn-half + .matn-half{ margin-top:2px; }
   .rq-title{
     font-size:10.5px;
     letter-spacing:1.4px;
@@ -597,6 +604,9 @@
     <button class="mode-tab" id="modeReview" role="tab" aria-selected="false">
       Review<span class="sub">By juz'</span>
     </button>
+    <button class="mode-tab" id="modeMatn" role="tab" aria-selected="false">
+      Matn<span class="sub">الشاطبية</span>
+    </button>
   </div>
 
   <button class="install-btn" id="installBtn" hidden>Install app</button>
@@ -626,6 +636,19 @@
         </div>
         <div class="review-resume" id="reviewResume">
           <button id="reviewResumeBtn"><span class="txt"></span></button>
+        </div>
+      </div>
+
+      <div class="review-setup" id="matnSetup">
+        <div class="review-row">
+          <span>Bayt</span>
+          <input type="number" id="matnFrom" min="1" max="1173" value="1" inputmode="numeric" aria-label="From bayt">
+          <span>to</span>
+          <input type="number" id="matnTo" min="1" max="1173" value="20" inputmode="numeric" aria-label="To bayt">
+          <button class="review-start" id="matnStart">Start</button>
+        </div>
+        <div class="review-resume" id="matnResume">
+          <button id="matnResumeBtn"><span class="txt"></span></button>
         </div>
       </div>
 
@@ -675,6 +698,11 @@
         <div class="rq-title">Quarter-ḥizb queue</div>
         <div class="rq-list" id="reviewQueueList"></div>
       </div>
+
+      <div class="review-queue" id="matnQueue">
+        <div class="rq-title">Abyāt</div>
+        <div class="rq-list" id="matnQueueList"></div>
+      </div>
     </div>
   </div>
 
@@ -684,6 +712,7 @@
     <p>The riwayah is not drawn evenly. Hafs 'an 'Asim makes up about four fifths of the library but is deliberately held to around an eighth of the airtime, and the rest is shared among the other readings in a way that favours the rarer ones without letting the handful with a single recording keep returning. In practice the nine rarest qira'at take about a third of the airtime while holding four percent of the recordings.</p>
     <p>Friday mode plays Surat al-Kahf exclusively, following the tradition of reciting it on Fridays, and rotates through the different readings of it rather than through different surahs. The same weighting applies, except for two readings that have no recording of al-Kahf on the library and so sit out this mode. In Friday mode the surah is played whole rather than split into parts.</p>
     <p>Review mode is for revising a stretch of the Qur'an in order. Choose a reciter and enter a starting and ending juz' (both included), and it recites that exact span &mdash; beginning and ending partway through a surah where the juz' boundaries fall &mdash; with the verses shown as they are recited. The reciter menu lists every Hafs reciter on the library who has both a complete recording and published verse timings; since different reciters' timing marks are placed with differing precision, you can settle on whichever one tracks the text best for you. The passage is divided at quarter-hizb (rub' al-hizb) boundaries, listed as a queue you can tap to jump between; the previous and next buttons step one quarter-hizb at a time, while rewind still goes back ten seconds. Your place is saved continuously, so you can stop and later resume exactly where you left off.</p>
+    <p>Matn mode is for memorising the Shāṭibiyyah (Ḥirz al-Amānī), the 1173-line poem on the seven readings. Enter a range of abyāt and it recites them in Ayman al-Suwayd's voice, with the bayt shown as it is recited and a tappable list of the range. Because the recitation is split by chapter rather than by line, the highlight is approximate — each chapter's audio is divided evenly across its abyāt — but the previous and next buttons step one bayt at a time to keep it locked, and your place is saved so you can resume. The text is drawn from surahquran.net and the audio streams from the Internet Archive.</p>
     <p>When the chosen recitation has published ayah timings, the verse being recited appears beneath the surah name, in the mushaf text of that specific riwayah &mdash; Warsh audio is shown against the Warsh mushaf, Qalun against Qalun, and so on, each in the King Fahd Complex's Uthmanic font for that narration. This matters because the readings do not all divide the text the same way: al-Baqarah is 285 verses in Warsh and Qalun but 286 in Hafs and Shu'bah. Recitations without published timings, or in riwayat with no published digital mushaf, simply play without text.</p>
     <p>Long surahs (over ~25 minutes) are automatically split into 15&ndash;20 minute parts, and each part joins the random rotation on its own, so no single track keeps the stream tied up for hours. Where ayah timings exist, these parts begin and end on verse boundaries rather than mid-verse. If the connection drops mid-recitation, the player reconnects and resumes from where it left off.</p>
     <p>Tip: open this page in your phone's browser and use "Add to Home Screen" so it behaves like an app and keeps playing with your screen locked.</p>
@@ -816,7 +845,46 @@
     29,19,36,25,22,17,19,26,30,20,15,21,11,8,8,19,5,8,8,11,
     11,8,3,9,5,4,7,3,6,3,5,4,5,6];
 
-  let mode = 'radio';        // 'radio' | 'friday' | 'review'
+  // --- Shatibiyya (matn memorisation) -------------------------------------
+  // Text (1173 abyat) is fetched at runtime from surahquran.net and parsed by
+  // bayt number, so the vowelled text stays byte-exact rather than transcribed.
+  // Audio is Ayman Suwayd's recitation on the Internet Archive, split by
+  // chapter (bab). SHAT_MAP aligns each chapter to its audio file and bayt
+  // range: [audioFileNumber, firstBayt, lastBayt, durationSeconds]. audio 0 =
+  // no recording (the closing khatimah). Playback even-divides a file's
+  // duration across its abyat to follow along — approximate, but the prev/next
+  // buttons step one bayt at a time to keep it locked.
+  const SHAT_SERVER = 'https://archive.org/download/sh-ayman-sowaid-matn-ashshatebiih/';
+  const SHAT_TEXT_URL = 'https://surahquran.com/Tajweed/alshatibieah.html';
+  const SHAT_KEY = 'muqri.matn.v1';
+  const SHAT_TOTAL = 1173;
+  const SHAT_MAP = [
+    [2,1,94,883],[3,95,99,54],[4,100,107,81],[5,108,115,80],[6,116,131,151],
+    [7,132,157,246],[8,158,167,97],[9,168,182,149],[10,183,201,185],[11,202,213,119],
+    [12,214,225,118],[13,226,234,94],[14,235,254,198],[15,255,258,43],[16,259,261,32],
+    [17,262,265,43],[18,266,269,43],[19,270,273,43],[20,274,276,37],[21,277,285,90],
+    [22,286,290,52],[23,291,338,457],[24,339,342,46],[25,343,358,155],[26,359,364,60],
+    [27,365,375,105],[28,376,386,107],[29,387,419,322],[30,420,444,258],[31,445,545,1011],
+    [32,546,586,423],[33,587,613,273],[34,614,631,195],[35,632,680,471],[36,681,713,345],
+    [37,714,724,114],[38,725,737,135],[39,738,754,173],[40,755,771,173],[41,772,786,152],
+    [42,787,796,102],[43,797,801,54],[44,802,807,61],[45,808,815,83],[46,816,829,144],
+    [47,830,859,307],[48,860,870,117],[49,871,886,168],[50,887,892,67],[51,893,902,108],
+    [52,903,911,98],[53,912,919,85],[54,920,926,78],[55,927,931,58],[56,932,944,141],
+    [57,945,951,76],[58,952,957,66],[59,958,974,175],[60,975,985,113],[61,986,992,77],
+    [62,993,1000,89],[63,1001,1004,49],[64,1005,1009,58],[65,1010,1014,58],[66,1015,1017,38],
+    [67,1018,1030,141],[68,1031,1037,76],[69,1038,1051,162],[70,1052,1058,80],[71,1059,1064,72],
+    [72,1065,1077,146],[73,1078,1091,159],[74,1092,1098,84],[75,1099,1114,177],[76,1115,1120,73],
+    [77,1121,1133,146],[78,1134,1159,435],[0,1160,1173,0]
+  ];
+  let matnMode = false;
+  let shatAyat = null;       // { n: {sadr, ajz} }, fetched at runtime
+  let shatTitles = null;     // { firstBaytOfChapter: title }
+  let shatTextPromise = null;
+  let matnState = null;      // { from, to, rows:[covered SHAT_MAP rows], idx }
+  let matnToken = 0;
+  let lastMatnSave = 0;
+
+  let mode = 'radio';        // 'radio' | 'friday' | 'review' | 'matn'
   let fridayMode = false;
   let reviewMode = false;
   let reviewState = null;    // { fromJuz, toJuz, items:[{surahId,startAyah,endAyah}], idx }
@@ -960,7 +1028,15 @@
     prevRubBtn: document.getElementById('prevRubBtn'),
     reviewQueue: document.getElementById('reviewQueue'),
     reviewQueueList: document.getElementById('reviewQueueList'),
-    reciterSelect: document.getElementById('reciterSelect')
+    reciterSelect: document.getElementById('reciterSelect'),
+    modeMatn: document.getElementById('modeMatn'),
+    matnSetup: document.getElementById('matnSetup'),
+    matnFrom: document.getElementById('matnFrom'),
+    matnTo: document.getElementById('matnTo'),
+    matnStart: document.getElementById('matnStart'),
+    matnResume: document.getElementById('matnResume'),
+    matnResumeBtn: document.getElementById('matnResumeBtn'),
+    matnQueueList: document.getElementById('matnQueueList')
   };
 
   const PAUSE_ICON = '<path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/>';
@@ -1388,12 +1464,13 @@
 
   function skip(){
     setStatus('');
-    if(cur && cur.review){ nextRub(); return; }   // in review, "next" = next quarter-hizb
+    if(cur && cur.matn){ nextBayt(); return; }     // in matn, "next" = next bayt
+    if(cur && cur.review){ nextRub(); return; }    // in review, "next" = next quarter-hizb
     advance();
   }
 
   function rewind(){
-    const floor = cur ? (cur.review ? (cur.playStart || 0) : (cur.chunked ? cur.chunkStart : 0)) : 0;
+    const floor = cur ? ((cur.review || cur.matn) ? (cur.playStart || 0) : (cur.chunked ? cur.chunkStart : 0)) : 0;
     els.audio.currentTime = Math.max(floor, els.audio.currentTime - REWIND_SECONDS);
   }
 
@@ -1409,6 +1486,7 @@
       els.audio.currentTime = t;
       return;
     }
+    if(cur.matn){ applyMatnTrim(); return; }
     if(cur.review){ applyReviewTrim(); return; }
     if(!cur.chunkAssigned){
       cur.chunkAssigned = true;
@@ -1434,6 +1512,7 @@
   });
 
   els.audio.addEventListener('ended', () => {
+    if(cur && cur.matn){ matnAdvance(); return; }
     if(cur && cur.review){ reviewAdvance(); return; }
     advance();
   });
@@ -1453,7 +1532,10 @@
       return;
     }
     errorStreak++;
-    if(cur && cur.review){
+    if(cur && cur.matn){
+      if(errorStreak <= 5) matnAdvance();
+      else { setEyebrow('CONNECTION TROUBLE', false); setStatus('Could not load this recitation. Tap next to move on.'); }
+    } else if(cur && cur.review){
       // Skip a stubborn surah rather than jumping into the random stream.
       if(errorStreak <= 5) reviewAdvance();
       else { setEyebrow('CONNECTION TROUBLE', false); setStatus('Could not load this recitation. Tap Skip to move on.'); }
@@ -1469,6 +1551,7 @@
     const d = els.audio.duration;
     if(!isFinite(d) || d <= 0) return;
     lastPos = els.audio.currentTime;
+    if(cur && cur.matn){ handleMatnTimeupdate(d); return; }
     if(cur && cur.review){ handleReviewTimeupdate(d); return; }
     const start = (cur && cur.chunked) ? cur.chunkStart : 0;
     const end = (cur && cur.chunked) ? Math.min(cur.chunkEnd, d) : d;
@@ -1496,6 +1579,7 @@
     els.rosette.classList.remove('breathe');
     if('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
     if(cur && cur.review) saveReviewProgress(true);
+    if(cur && cur.matn) saveMatnProgress(true);
   });
 
   // Nothing plays until the listener asks for it. The play button both begins
@@ -1508,22 +1592,299 @@
       else setStatus('Choose a reciter and range, then press Start.');
       return;
     }
+    if(matnMode){
+      if(matnState){ els.audio.play().catch(() => {}); }
+      else setStatus('Choose a range of abyāt, then press Start.');
+      return;
+    }
     beginRadio();   // radio or friday: start a fresh track
   }
   els.playBtn.addEventListener('click', togglePlay);
   els.skipBtn.addEventListener('click', skip);
-  els.prevRubBtn.addEventListener('click', prevRub);
+  els.prevRubBtn.addEventListener('click', () => { if(cur && cur.matn) prevBayt(); else prevRub(); });
   els.rewindBtn.addEventListener('click', rewind);
   els.volume.addEventListener('input', () => { els.audio.volume = Number(els.volume.value); });
   window.addEventListener('resize', () => { if(cur && cur.ayat) fitAyah(); });
 
+  // ---- Shatibiyya matn mode ---------------------------------------------
+
+  function pad2(n){ return String(n).padStart(2, '0'); }
+
+  // Fetch + parse the matn once. Runs through the same CORS relays the rest of
+  // the app uses. Fills shatAyat (byte-exact text by bayt number) and
+  // shatTitles (chapter title keyed by its first bayt).
+  function loadShatText(){
+    if(shatTextPromise) return shatTextPromise;
+    shatTextPromise = (async () => {
+      let html = null;
+      for(const wrap of CORS_PROXIES){
+        try{ const r = await fetch(wrap(SHAT_TEXT_URL)); if(r.ok){ html = await r.text(); break; } }catch(e){}
+      }
+      if(!html) throw new Error('matn text unavailable');
+      let t = html.replace(/<\s*(br|\/p|\/div|\/li|\/h[1-6]|\/tr)\s*\/?>/gi, '\n').replace(/<[^>]+>/g, ' ');
+      const ta = document.createElement('textarea'); ta.innerHTML = t; t = ta.value;
+      const lines = t.split(/\n/).map(s => s.replace(/\s+/g, ' ').trim()).filter(Boolean);
+      const SEPR = /\s(?:\.\.\.|…|\.{2,})\s/;
+      const isBayt = s => /^(\d{1,4})\s*[-–]\s*\S/.test(s) && +s.match(/^(\d+)/)[1] <= SHAT_TOTAL;
+      const headWord = s => /(بَاب|باب|ذِكْر|ذكر|سُوْرَة|سُورَة|سورة|مِنْ سُ|مِنْ سو|وَمِنْ|ومن سو|مُقَدّ|مقدم|الخاتمة|فَرْش|فرش)/.test(s);
+      const ay = {}, titles = {};
+      let pendingHead = null;
+      for(const ln of lines){
+        if(isBayt(ln)){
+          const n = +ln.match(/^(\d+)/)[1];
+          const rest = ln.replace(/^(\d{1,4})\s*[-–]\s*/, '');
+          if(SEPR.test(rest)){ const p = rest.split(SEPR); ay[n] = { sadr: p[0].trim(), ajz: p.slice(1).join(' ').trim() }; }
+          else ay[n] = { sadr: rest.trim(), ajz: '' };
+          if(pendingHead){ titles[n] = pendingHead; pendingHead = null; }
+        } else if(/[؀-ۿ]/.test(ln) && headWord(ln) && !/\(676\)/.test(ln)){
+          pendingHead = ln.replace(/\s*\(\d+\)\s*$/, '').replace(/[()]/g, '').trim();
+        }
+      }
+      shatAyat = ay; shatTitles = titles;
+      return ay;
+    })().catch(e => { shatTextPromise = null; throw e; });
+    return shatTextPromise;
+  }
+
+  function shatRowTitle(row){
+    return (shatTitles && shatTitles[row[1]]) || ('الأبيات ' + row[1] + '–' + row[2]);
+  }
+
+  function matnCoveredRows(from, to){
+    // rows that overlap [from,to] and have audio
+    return SHAT_MAP.filter(r => r[0] > 0 && r[1] <= to && r[2] >= from);
+  }
+
+  function startMatn(from, to, resume){
+    from = Math.min(SHAT_TOTAL, Math.max(1, Math.round(from) || 1));
+    to = Math.min(SHAT_TOTAL, Math.max(from, Math.round(to) || from));
+    els.matnFrom.value = from; els.matnTo.value = to;
+    const rows = matnCoveredRows(from, to);
+    if(!rows.length){ setStatus('No recitation for that range.'); return; }
+    matnState = { from, to, rows, idx: 0 };
+    let idx = 0, seek = null;
+    if(resume && resume.from === from && resume.to === to){
+      idx = Math.min(Math.max(resume.idx | 0, 0), rows.length - 1);
+      seek = resume.time;
+    }
+    els.matnResume.style.display = 'none';
+    setStatus('');
+    matnLoadRow(idx, seek);
+  }
+
+  function matnLoadRow(idx, seekTime){
+    if(!matnState) return;
+    const token = ++matnToken;
+    matnState.idx = idx;
+    if(idx >= matnState.rows.length){ matnComplete(); return; }
+    const row = matnState.rows[idx];
+    const from = Math.max(matnState.from, row[1]);
+    const to = Math.min(matnState.to, row[2]);
+    cur = {
+      matn: true, row, rowFrom: from, rowTo: to,
+      count: row[2] - row[1] + 1, perBayt: 0, playStart: 0, playEnd: Infinity,
+      curBayt: null,
+      seekTime: (typeof seekTime === 'number' ? seekTime : null),
+      seekBayt: (seekTime && seekTime.bayt) || null,
+      seekLast: !!(seekTime && seekTime.last),
+      recoveries: 0, resumeAt: null, token,
+      track: { audioUrl: SHAT_SERVER + pad2(row[0]) + '.mp3' }
+    };
+    lastPos = 0;
+    hideAyahPanel();
+    els.eyebrow.textContent = 'الشاطبية';
+    els.eyebrow.classList.remove('loading');
+    els.surahName.textContent = shatRowTitle(row);
+    els.reciterName.textContent = 'أيمن رشدي سويد';
+    els.riwayahName.textContent = "Ash-Shāṭibiyyah  ·  الشاطبية";
+    els.audio.src = cur.track.audioUrl;
+    els.audio.play().then(() => updateMatnMedia()).catch(() => {});
+    matnRenderQueue();
+  }
+
+  function applyMatnTrim(){
+    if(!cur || !cur.matn) return;
+    const d = els.audio.duration;
+    if(!isFinite(d) || d <= 0) return;
+    cur.perBayt = d / cur.count;
+    cur.playEnd = (cur.rowTo - cur.row[1] + 1) * cur.perBayt;
+    if(cur.seekLast) cur.playStart = (cur.rowTo - cur.row[1]) * cur.perBayt;
+    else if(cur.seekBayt) cur.playStart = (Math.min(cur.rowTo, Math.max(cur.rowFrom, cur.seekBayt)) - cur.row[1]) * cur.perBayt;
+    else if(cur.seekTime != null) cur.playStart = cur.seekTime;
+    else cur.playStart = (cur.rowFrom - cur.row[1]) * cur.perBayt;
+    if(!cur.trimApplied){
+      cur.trimApplied = true;
+      if(cur.playStart > 0.3 && Math.abs(els.audio.currentTime - cur.playStart) > 1) els.audio.currentTime = cur.playStart;
+    }
+    cur.seekTime = null;
+    updateMatnForTime(els.audio.currentTime);
+  }
+
+  function baytAtTime(t){
+    if(!cur || !cur.matn || !cur.perBayt) return cur ? cur.rowFrom : 1;
+    const b = cur.row[1] + Math.floor(t / cur.perBayt);
+    return Math.min(cur.row[2], Math.max(cur.row[1], b));
+  }
+
+  function showBayt(n){
+    if(!shatAyat || !shatAyat[n]) return;
+    const a = shatAyat[n];
+    els.ayahText.classList.add('fading');
+    setTimeout(() => {
+      if(!cur || !cur.matn || cur.curBayt !== n) return;
+      els.ayahText.style.fontFamily = '"Amiri", serif';
+      els.ayahText.innerHTML = a.ajz
+        ? '<span class="matn-half">' + a.sadr + '</span><span class="matn-half">' + a.ajz + '</span>'
+        : '<span class="matn-half">' + a.sadr + '</span>';
+      els.ayahNum.textContent = 'Bayt ' + n + ' of ' + SHAT_TOTAL;
+      fitAyah();
+      els.ayahText.classList.remove('fading');
+      els.ayahPanel.classList.add('show');
+    }, 160);
+  }
+
+  function updateMatnForTime(t){
+    if(!cur || !cur.matn) return;
+    const n = baytAtTime(t);
+    if(n !== cur.curBayt){ cur.curBayt = n; showBayt(n); matnRenderQueue(); }
+  }
+
+  function handleMatnTimeupdate(d){
+    const t = els.audio.currentTime;
+    lastPos = t;
+    if(!cur.trimApplied){ applyMatnTrim(); if(!cur.trimApplied) return; }
+    if(t >= cur.playEnd - 0.2){
+      if(!advancing){ advancing = true; matnAdvance().finally(() => { advancing = false; }); }
+      return;
+    }
+    const span = Math.max(cur.playEnd - cur.playStart, 0.01);
+    const rel = Math.min(Math.max(t - cur.playStart, 0), span);
+    els.barFill.style.width = (rel / span * 100) + '%';
+    els.timeElapsed.textContent = fmtTime(rel);
+    els.timeTotal.textContent = fmtTime(span);
+    updateMatnForTime(t);
+    saveMatnProgress(false);
+  }
+
+  async function matnAdvance(){
+    if(!matnState) return;
+    saveMatnProgress(true);
+    const next = matnState.idx + 1;
+    if(next >= matnState.rows.length){ matnComplete(); return; }
+    await matnLoadRow(next, null);
+  }
+
+  function nextBayt(){
+    if(!cur || !cur.matn || !cur.perBayt) return;
+    const target = (cur.curBayt - cur.row[1] + 1) * cur.perBayt + 0.05;
+    if(target < cur.playEnd - 0.1){ els.audio.currentTime = target; if(els.audio.paused) els.audio.play().catch(()=>{}); }
+    else matnAdvance();
+  }
+  function prevBayt(){
+    if(!cur || !cur.matn || !cur.perBayt) return;
+    const startOfCur = (cur.curBayt - cur.row[1]) * cur.perBayt;
+    if(els.audio.currentTime > startOfCur + 2.5){ els.audio.currentTime = startOfCur; }
+    else if(cur.curBayt > cur.rowFrom){ els.audio.currentTime = Math.max(cur.playStart, startOfCur - cur.perBayt + 0.05); }
+    else if(matnState.idx > 0){ matnLoadPrev(); return; }
+    else els.audio.currentTime = cur.playStart;
+    if(els.audio.paused) els.audio.play().catch(()=>{});
+  }
+  async function matnLoadPrev(){
+    const prev = matnState.idx - 1;
+    if(prev < 0) return;
+    await matnLoadRow(prev, { last: true });
+  }
+
+  function matnComplete(){
+    els.audio.pause();
+    els.eyebrow.textContent = 'تَمَّ';
+    setStatus('Finished abyāt ' + matnState.from + '–' + matnState.to + '. Choose a range to review again.');
+    clearMatnProgress();
+    matnState = null;
+    els.matnSetup.style.display = 'block';
+    prepareMatnSetup();
+  }
+
+  function saveMatnProgress(force){
+    if(!matnState || !cur || !cur.matn) return;
+    const now = Date.now();
+    if(!force && now - lastMatnSave < 2500) return;
+    lastMatnSave = now;
+    try{
+      localStorage.setItem(SHAT_KEY, JSON.stringify({
+        from: matnState.from, to: matnState.to, idx: matnState.idx,
+        bayt: cur.curBayt, time: els.audio.currentTime, at: now
+      }));
+    }catch(e){}
+  }
+  function loadMatnProgress(){ try{ return JSON.parse(localStorage.getItem(SHAT_KEY)); }catch(e){ return null; } }
+  function clearMatnProgress(){ try{ localStorage.removeItem(SHAT_KEY); }catch(e){} }
+
+  function prepareMatnSetup(){
+    const saved = loadMatnProgress();
+    if(saved && saved.from){
+      els.matnFrom.value = saved.from; els.matnTo.value = saved.to;
+      els.matnResume.querySelector('.txt').textContent =
+        '↻ Resume abyāt ' + saved.from + '–' + saved.to + ' · bayt ' + (saved.bayt || saved.from);
+      els.matnResume.style.display = 'block';
+    } else {
+      els.matnResume.style.display = 'none';
+      if(!els.matnFrom.value) els.matnFrom.value = 1;
+      if(!els.matnTo.value) els.matnTo.value = 20;
+    }
+  }
+
+  function updateMatnMedia(){
+    if(!('mediaSession' in navigator) || !cur || !cur.matn) return;
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: shatRowTitle(cur.row), artist: 'أيمن رشدي سويد', album: 'الشاطبية'
+    });
+    navigator.mediaSession.setActionHandler('play', () => els.audio.play());
+    navigator.mediaSession.setActionHandler('pause', () => els.audio.pause());
+    navigator.mediaSession.setActionHandler('nexttrack', () => nextBayt());
+    try{ navigator.mediaSession.setActionHandler('previoustrack', () => prevBayt()); }catch(e){}
+  }
+
+  // Queue of the abyat in the chosen range, tappable to jump.
+  function matnRenderQueue(){
+    if(!matnState){ els.matnQueueList.innerHTML = '<div class="rq-empty">Choose a range of abyāt.</div>'; return; }
+    if(!shatAyat) return;
+    const from = matnState.from, to = matnState.to;
+    const curB = cur && cur.matn ? cur.curBayt : -1;
+    // cap the rendered list so very large ranges stay light
+    const lo = Math.max(from, (curB > 0 ? curB : from) - 40);
+    const hi = Math.min(to, lo + 120);
+    let html = '';
+    for(let n = lo; n <= hi; n++){
+      const a = shatAyat[n]; if(!a) continue;
+      const cls = n === curB ? 'current' : (curB > 0 && n < curB ? 'done' : '');
+      html += '<div class="rq-item ' + cls + '" data-bayt="' + n + '">' +
+        '<span class="rq-tag">' + n + '</span>' +
+        '<span class="rq-name" style="font-family:Amiri,serif;font-size:14px">' + a.sadr + '</span></div>';
+    }
+    els.matnQueueList.innerHTML = html;
+    const el = els.matnQueueList.querySelector('.rq-item.current');
+    if(el) el.scrollIntoView({ block: 'nearest' });
+  }
+
+  function matnJumpTo(n){
+    if(!matnState) return;
+    n = Math.min(matnState.to, Math.max(matnState.from, n));
+    const rowIdx = matnState.rows.findIndex(r => n >= r[1] && n <= r[2]);
+    if(rowIdx < 0) return;
+    // seek to the bayt's slot within that row (computed after metadata via seekTime marker)
+    matnLoadRow(rowIdx, { bayt: n });
+  }
+
   function setMode(name){
     if(name === mode) return;
     if(mode === 'review' && cur && cur.review) saveReviewProgress(true);
+    if(mode === 'matn' && cur && cur.matn) saveMatnProgress(true);
     mode = name;
     fridayMode = name === 'friday';
     reviewMode = name === 'review';
-    [['radio', els.modeRadio], ['friday', els.modeFriday], ['review', els.modeReview]]
+    matnMode = name === 'matn';
+    [['radio', els.modeRadio], ['friday', els.modeFriday], ['review', els.modeReview], ['matn', els.modeMatn]]
       .forEach(([n, el]) => {
         const on = n === name;
         el.classList.toggle('active', on);
@@ -1531,9 +1892,12 @@
       });
     els.brandTag.textContent = name === 'friday' ? "Friday · Surat al-Kahf"
       : name === 'review' ? "Review · by juz'"
+      : name === 'matn' ? "Matn · Ash-Shāṭibiyyah"
       : "Random Qira'at Radio";
     els.reviewSetup.style.display = reviewMode ? 'block' : 'none';
+    els.matnSetup.style.display = matnMode ? 'block' : 'none';
     document.body.classList.toggle('is-review', reviewMode);
+    document.body.classList.toggle('is-matn', matnMode);
     // Switching tabs never auto-plays; it pauses and resets to a ready state,
     // then waits for the play button (radio/friday) or Start (review).
     els.audio.pause();
@@ -1556,6 +1920,17 @@
       els.surahMeta.innerHTML = '&nbsp;';
       els.reciterName.textContent = currentReciter().nameAr;
       els.riwayahName.textContent = "Hafs 'an 'Asim  ·  حفص عن عاصم";
+    } else if(matnMode){
+      matnState = null;
+      els.surahName.textContent = '—';
+      els.surahMeta.innerHTML = '&nbsp;';
+      els.reciterName.textContent = 'أيمن رشدي سويد';
+      els.riwayahName.textContent = "Ash-Shāṭibiyyah  ·  الشاطبية";
+      setEyebrow('LOADING MATN…', true);
+      matnRenderQueue();
+      loadShatText()
+        .then(() => { setEyebrow('CHOOSE ABYĀT', false); prepareMatnSetup(); matnRenderQueue(); })
+        .catch(() => { setEyebrow('CONNECTION TROUBLE', false); setStatus('Could not load the matn text. Check your connection.'); });
     } else {
       setEyebrow('PRESS PLAY', false);
       els.surahName.textContent = '—';
@@ -1568,6 +1943,7 @@
   els.modeRadio.addEventListener('click', () => setMode('radio'));
   els.modeFriday.addEventListener('click', () => setMode('friday'));
   els.modeReview.addEventListener('click', () => setMode('review'));
+  els.modeMatn.addEventListener('click', () => setMode('matn'));
 
   // ---- Review mode ------------------------------------------------------
 
@@ -1958,9 +2334,29 @@
     const saved = loadReviewProgress();
     if(saved) startReview(saved.fromJuz, saved.toJuz, saved);
   });
-  window.addEventListener('pagehide', () => { if(cur && cur.review) saveReviewProgress(true); });
+
+  els.matnStart.addEventListener('click', () => {
+    if(shatAyat) startMatn(+els.matnFrom.value, +els.matnTo.value, null);   // sync: keep the gesture
+    else loadShatText().then(() => startMatn(+els.matnFrom.value, +els.matnTo.value, null))
+      .catch(() => setStatus('Could not load the matn text.'));
+  });
+  els.matnResumeBtn.addEventListener('click', () => {
+    const saved = loadMatnProgress();
+    if(!saved) return;
+    if(shatAyat) startMatn(saved.from, saved.to, saved);
+    else loadShatText().then(() => startMatn(saved.from, saved.to, saved)).catch(() => {});
+  });
+  els.matnQueueList.addEventListener('click', e => {
+    const it = e.target.closest('.rq-item');
+    if(it && it.dataset.bayt) matnJumpTo(+it.dataset.bayt);
+  });
+  window.addEventListener('pagehide', () => {
+    if(cur && cur.review) saveReviewProgress(true);
+    if(cur && cur.matn) saveMatnProgress(true);
+  });
   document.addEventListener('visibilitychange', () => {
     if(document.hidden && cur && cur.review) saveReviewProgress(true);
+    if(document.hidden && cur && cur.matn) saveMatnProgress(true);
   });
 
   // Radio/Friday: begin a fresh track. Called from the play button (a user
