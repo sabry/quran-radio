@@ -81,6 +81,32 @@
     color:var(--muted);
   }
 
+  .install-btn{
+    -webkit-tap-highlight-color:transparent;
+    display:block;
+    margin:12px auto 0;
+    border:1px solid var(--gold-soft);
+    background:rgba(201,162,75,0.08);
+    color:var(--gold);
+    font-family:'Work Sans', sans-serif;
+    font-size:11px;
+    letter-spacing:1.2px;
+    text-transform:uppercase;
+    padding:8px 18px;
+    border-radius:100px;
+    cursor:pointer;
+  }
+  .install-btn:active{ background:rgba(201,162,75,0.2); }
+  .install-hint{
+    max-width:440px;
+    margin:10px auto 0;
+    text-align:center;
+    font-size:12px;
+    line-height:1.5;
+    color:var(--muted);
+    padding:0 12px;
+  }
+
   .modebar{
     width:100%;
     max-width:440px;
@@ -572,6 +598,9 @@
       Review<span class="sub">By juz'</span>
     </button>
   </div>
+
+  <button class="install-btn" id="installBtn" hidden>Install app</button>
+  <div class="install-hint" id="installHint" hidden></div>
 
   <div class="stage">
     <svg class="rosette" id="rosette" viewBox="0 0 200 200">
@@ -1975,6 +2004,42 @@
       navigator.serviceWorker.register('sw.js').catch(() => {});
     });
   }
+
+  // Install affordance. On Chrome/Edge/Android the browser fires
+  // beforeinstallprompt and we drive the native prompt from our own button.
+  // iOS Safari has no such event, so we show the manual Share-sheet steps.
+  (function(){
+    const btn = document.getElementById('installBtn');
+    const hint = document.getElementById('installHint');
+    const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+    if(standalone) return;   // already installed — nothing to offer
+
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+    let deferred = null;
+    window.addEventListener('beforeinstallprompt', e => {
+      e.preventDefault();
+      deferred = e;
+      btn.hidden = false;
+    });
+    btn.addEventListener('click', async () => {
+      if(deferred){
+        deferred.prompt();
+        await deferred.userChoice.catch(() => {});
+        deferred = null;
+        btn.hidden = true;
+      } else if(isIOS){
+        hint.hidden = !hint.hidden;
+      }
+    });
+    window.addEventListener('appinstalled', () => { btn.hidden = true; hint.hidden = true; deferred = null; });
+
+    if(isIOS){
+      btn.hidden = false;
+      hint.innerHTML = 'To install: tap the Share button, then <strong>Add to Home Screen</strong>.';
+    }
+  })();
 </script>
 </body>
 </html>
