@@ -249,7 +249,7 @@
   body.is-matn .matn-reader{ display:block; }
   .matn-scroll{
     position:absolute;
-    left:36px; right:8px; top:0;
+    left:8px; right:8px; top:0;
     will-change:transform;
   }
   .matn-line{
@@ -272,25 +272,14 @@
     opacity:0.6;
   }
   .matn-line.current{ color:var(--parchment); opacity:1; }
-  .matn-nowline{
-    position:absolute;
-    left:34px; right:6px; top:50%;
-    height:0;
-    border-top:1px solid var(--gold-soft);
-    pointer-events:none;
-  }
   .matn-slider{
-    position:absolute;
-    left:2px; top:10%;
-    height:80%;
-    width:26px;
-    writing-mode:vertical-lr;
-    direction:rtl;
-    -webkit-appearance:slider-vertical;
+    display:none;
+    width:100%;
+    margin:6px 0 0;
     accent-color:var(--gold);
-    cursor:ns-resize;
-    background:transparent;
+    cursor:ew-resize;
   }
+  body.is-matn .matn-slider{ display:block; }
   .matn-hint{
     text-align:center;
     font-size:10.5px;
@@ -728,10 +717,9 @@
 
       <div class="matn-reader" id="matnReader">
         <div class="matn-scroll" id="matnScroll"></div>
-        <div class="matn-nowline"></div>
-        <input type="range" class="matn-slider" id="matnSlider" min="-60" max="60" value="0" aria-label="Nudge position">
       </div>
-      <div class="matn-hint">Drag the slider to nudge · tap the line you hear to re-align</div>
+      <input type="range" class="matn-slider" id="matnSlider" min="0" max="1000" value="0" aria-label="Scroll text">
+      <div class="matn-hint">Slide to scroll the text · it also follows the recitation</div>
 
       <div class="divider"></div>
 
@@ -1120,8 +1108,10 @@
     matnSlider: document.getElementById('matnSlider')
   };
   let matnLines = [];       // DOM .matn-line elements for the current range
-  let matnCurLine = -1;
-  let matnOffset = 0;       // manual nudge, in abyat (from the side slider)
+  let matnCurLine = -1;     // highlighted line index
+  let matnShownLine = -1;   // line the reader is currently scrolled to
+  let matnOffset = 0;       // text position relative to audio, in abyat (manual)
+  let matnDragging = false;
 
   const PAUSE_ICON = '<path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/>';
   const PLAY_ICON = '<path d="M8 5v14l11-7z" fill="currentColor"/>';
@@ -1803,8 +1793,9 @@
     };
     lastPos = 0;
     hideAyahPanel();
-    matnOffset = 0; els.matnSlider.value = 0;
+    matnOffset = 0; matnShownLine = from;
     matnScrollToPos(from, false);   // position the reader at this chapter's first bayt
+    matnSetSlider(from);
     els.eyebrow.textContent = 'الشاطبية';
     els.eyebrow.classList.remove('loading');
     els.surahName.textContent = shatRowTitle(row);
@@ -1861,38 +1852,47 @@
     els.matnSlider.value = 0; matnOffset = 0;
   }
 
-  // Place bayt number `n` on the centre line, plus the manual offset (taps) and
-  // the fine slider trim. `smooth` glides (auto-advance / tap); off is instant
-  // (live slider drag). Uses element offsets so variable line heights work.
-  function matnScrollToPos(n, smooth){
+  // Scroll so global bayt `bayt` (may be fractional) sits ~38% down the reader.
+  // `smooth` glides (auto-advance); off is instant (live slider drag). Uses
+  // element offsets so lines of different heights are handled correctly.
+  function matnScrollToPos(bayt, smooth){
     if(!matnLines.length || !matnState) return;
-    const trim = Number(els.matnSlider.value) / 25;
-    let pos = (n - matnState.from) + matnOffset + trim;
-    pos = Math.max(0, Math.min(matnLines.length - 1, pos));
-    const i = Math.floor(pos), frac = pos - i;
+    let idxf = Math.max(0, Math.min(matnLines.length - 1, bayt - matnState.from));
+    const i = Math.floor(idxf), frac = idxf - i;
     const a = matnLines[i], b = matnLines[i + 1];
     const cA = a.offsetTop + a.offsetHeight / 2;
     const cB = b ? b.offsetTop + b.offsetHeight / 2 : cA + a.offsetHeight;
     const centre = cA + (cB - cA) * frac;
-    els.matnScroll.style.transition = smooth ? 'transform 0.6s cubic-bezier(.4,0,.2,1)' : 'none';
-    els.matnScroll.style.transform = 'translateY(' + (els.matnReader.clientHeight / 2 - centre) + 'px)';
-    const idx = Math.min(matnLines.length - 1, Math.round(pos));
+    els.matnScroll.style.transition = smooth ? 'transform 0.55s cubic-bezier(.4,0,.2,1)' : 'none';
+    els.matnScroll.style.transform = 'translateY(' + (els.matnReader.clientHeight * 0.38 - centre) + 'px)';
+    const idx = Math.min(matnLines.length - 1, Math.round(idxf));
     if(idx !== matnCurLine){
       if(matnLines[matnCurLine]) matnLines[matnCurLine].classList.remove('current');
       matnLines[idx].classList.add('current');
       matnCurLine = idx;
     }
   }
-  function matnRescroll(smooth){ matnScrollToPos(cur && cur.matn && cur.curBayt != null ? cur.curBayt : matnState.from, smooth); }
+  function matnSetSlider(bayt){
+    const span = (matnState.to - matnState.from) || 1;
+    els.matnSlider.value = Math.round(((bayt - matnState.from) / span) * 1000);
+  }
+  function matnRescroll(smooth){ matnScrollToPos(matnShownLine >= 0 ? matnShownLine : matnState.from, smooth); }
 
-  // Advance the reader only when the audio crosses into a new bayt, so the text
-  // holds still and then glides — same cadence as the recitation, not a
-  // constant fast scroll.
+  // Text position = audio position + manual offset. Advance (or rewind) the
+  // reader whenever the audio crosses a bayt boundary, in either direction, so
+  // the text follows a rewind too. Holds still between abyat, then glides.
   function updateMatnForTime(t){
-    if(!cur || !cur.matn || !cur.perBayt) return;
-    const cont = cur.row[1] + t / cur.perBayt;
-    const n = Math.min(cur.row[2], Math.max(cur.row[1], Math.floor(cont + 0.001)));
-    if(n !== cur.curBayt){ cur.curBayt = n; matnScrollToPos(n, true); }
+    if(!cur || !cur.matn || !cur.perBayt || !matnState) return;
+    const audioBayt = cur.row[1] + t / cur.perBayt;
+    cur.audioBayt = audioBayt;
+    cur.curBayt = Math.min(cur.row[2], Math.max(cur.row[1], Math.floor(audioBayt + 0.001)));
+    const textBayt = Math.max(matnState.from, Math.min(matnState.to, audioBayt + matnOffset));
+    const line = Math.floor(textBayt + 0.001);
+    if(line !== matnShownLine){
+      matnShownLine = line;
+      matnScrollToPos(line, true);
+      if(!matnDragging) matnSetSlider(line);
+    }
   }
 
   function handleMatnTimeupdate(d){
@@ -2506,15 +2506,27 @@
     const it = e.target.closest('.rq-item');
     if(it && it.dataset.bayt) matnJumpTo(+it.dataset.bayt);
   });
-  els.matnSlider.addEventListener('input', () => { matnRescroll(false); });   // live, instant
+  // The slider scrolls the text through the range at will, independently of the
+  // audio. It sets an offset from the audio position, which then keeps advancing
+  // at the recitation's pace — so a nudge sticks and the text keeps following.
+  function matnSliderDrag(){
+    if(!matnState) return;
+    matnDragging = true;
+    const bayt = matnState.from + (Number(els.matnSlider.value) / 1000) * (matnState.to - matnState.from);
+    matnOffset = bayt - (cur && cur.matn && cur.audioBayt != null ? cur.audioBayt : matnState.from);
+    matnShownLine = Math.floor(bayt + 0.001);
+    matnScrollToPos(bayt, false);
+  }
+  els.matnSlider.addEventListener('input', matnSliderDrag);
+  els.matnSlider.addEventListener('change', () => { matnDragging = false; });
   els.matnScroll.addEventListener('click', e => {
     const ln = e.target.closest('.matn-line');
-    if(!ln || !ln.dataset.bayt || !cur || !cur.matn || cur.curBayt == null) return;
-    // Adjust the text alignment only — put the tapped bayt on the now-line — and
-    // leave the audio playing untouched.
-    matnOffset = (+ln.dataset.bayt) - cur.curBayt;
-    els.matnSlider.value = 0;
-    matnScrollToPos(cur.curBayt, true);
+    if(!ln || !ln.dataset.bayt || !cur || !cur.matn || cur.audioBayt == null) return;
+    // Tap the line you hear: aligns the text to it, audio untouched.
+    matnOffset = (+ln.dataset.bayt) - cur.audioBayt;
+    matnShownLine = +ln.dataset.bayt;
+    matnScrollToPos(matnShownLine, true);
+    matnSetSlider(matnShownLine);
   });
   window.addEventListener('resize', () => { if(cur && cur.matn) matnRescroll(false); });
   window.addEventListener('pagehide', () => {
