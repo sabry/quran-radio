@@ -1739,7 +1739,12 @@
     const d = els.audio.duration;
     if(!isFinite(d) || d <= 0) return;
     cur.perBayt = d / cur.count;
-    cur.playEnd = (cur.rowTo - cur.row[1] + 1) * cur.perBayt;
+    // Even division underestimates the last bayt's end slightly, which was
+    // clipping the final word. Give it a tail so it finishes (capped at the
+    // file's end). Full-chapter ends already sit at the duration, so this is a
+    // no-op there.
+    const tail = Math.max(2.5, cur.perBayt * 0.5);
+    cur.playEnd = Math.min(d, (cur.rowTo - cur.row[1] + 1) * cur.perBayt + tail);
     if(cur.seekLast) cur.playStart = (cur.rowTo - cur.row[1]) * cur.perBayt;
     else if(cur.seekBayt) cur.playStart = (Math.min(cur.rowTo, Math.max(cur.rowFrom, cur.seekBayt)) - cur.row[1]) * cur.perBayt;
     else if(cur.seekTime != null) cur.playStart = cur.seekTime;
@@ -1785,8 +1790,18 @@
     const t = els.audio.currentTime;
     lastPos = t;
     if(!cur.trimApplied){ applyMatnTrim(); if(!cur.trimApplied) return; }
-    if(t >= cur.playEnd - 0.2){
-      if(!advancing){ advancing = true; matnAdvance().finally(() => { advancing = false; }); }
+    if(t >= cur.playEnd - 0.15){
+      const moreRows = matnState && matnState.idx < matnState.rows.length - 1;
+      if(moreRows){
+        if(!advancing){ advancing = true; matnAdvance().finally(() => { advancing = false; }); }
+      } else {
+        // End of the whole range: stop here and hold (don't run into later
+        // abyat). Enforced whether or not a session is still active, so replay
+        // and rewind stay inside the range.
+        els.audio.pause();
+        if(els.audio.currentTime > cur.playEnd) els.audio.currentTime = Math.max(cur.playStart, cur.playEnd - 0.05);
+        if(matnState) matnComplete();
+      }
       return;
     }
     const span = Math.max(cur.playEnd - cur.playStart, 0.01);
