@@ -134,6 +134,12 @@
     border-radius:100px;
     transition:color 0.25s ease, background 0.25s ease;
   }
+  .mode-tab .ar{
+    display:block;
+    font-size:14px;
+    letter-spacing:0;
+    line-height:1.2;
+  }
   .mode-tab .sub{
     display:block;
     font-size:8px;
@@ -691,22 +697,22 @@
 
   <div class="modebar" role="tablist">
     <button class="mode-tab active" id="modeRadio" role="tab" aria-selected="true">
-      Radio<span class="sub">All 114 surahs</span>
-    </button>
-    <button class="mode-tab" id="modeFriday" role="tab" aria-selected="false">
-      Friday<span class="sub">Al-Kahf · الكهف</span>
-    </button>
-    <button class="mode-tab" id="modeReview" role="tab" aria-selected="false">
-      Review<span class="sub">By juz'</span>
-    </button>
-    <button class="mode-tab" id="modeMatn" role="tab" aria-selected="false">
-      Matn<span class="sub">الشاطبية</span>
+      Radio<span class="sub">Random</span>
     </button>
     <button class="mode-tab" id="modeWerd" role="tab" aria-selected="false">
-      Werd<span class="sub">By juz'</span>
+      <span class="ar">ورد</span><span class="sub">juzʼ</span>
     </button>
     <button class="mode-tab" id="modeTajweed" role="tab" aria-selected="false">
-      Tajwīd<span class="sub">By rubʿ</span>
+      <span class="ar">تجويد</span><span class="sub">rubʿ</span>
+    </button>
+    <button class="mode-tab" id="modeReview" role="tab" aria-selected="false">
+      <span class="ar">حلقة</span><span class="sub">review</span>
+    </button>
+    <button class="mode-tab" id="modeFriday" role="tab" aria-selected="false">
+      <span class="ar">الكهف</span><span class="sub">Friday</span>
+    </button>
+    <button class="mode-tab" id="modeMatn" role="tab" aria-selected="false">
+      <span class="ar">الشاطبية</span><span class="sub">matn</span>
     </button>
   </div>
 
@@ -2314,7 +2320,7 @@
       startAyah: item.startAyah, endAyah: item.endAyah || SURAH_AYAT[item.surahId] || 9999,
       startT0: 0, endT1: null, playStart: 0, playEnd: Infinity,
       seekTime: (seekTime != null ? seekTime : null),
-      trimApplied: false, recoveries: 0, resumeAt: null, token
+      trimApplied: false, timingsReady: false, recoveries: 0, resumeAt: null, token
     };
     lastPos = 0;
     hideAyahPanel();
@@ -2336,9 +2342,10 @@
         const eA = res.ayat.find(a => a.n === (item.endAyah || cur.endAyah)); if(eA) cur.endT1 = eA.t1;
         unitBuildReader();
       }
+      cur.timingsReady = true;   // start/end times known → applyUnitTrim may seek
       applyUnitTrim();
       startUnitTick();
-    }).catch(() => { applyUnitTrim(); });
+    }).catch(() => { if(cur && cur.token === token){ cur.timingsReady = true; applyUnitTrim(); } });
   }
 
   function applyUnitTrim(){
@@ -2347,7 +2354,11 @@
     if(!isFinite(d) || d <= 0) return;
     cur.playStart = cur.seekTime != null ? cur.seekTime : (cur.startT0 || 0);
     cur.playEnd = cur.endT1 != null ? cur.endT1 : d;
-    if(!cur.trimApplied){
+    // Only lock in the trim (and seek to the unit's start) once we actually know
+    // where the unit begins. The start time arrives with the timings, which may
+    // resolve after loadedmetadata fires — otherwise we'd play from ayah 0.
+    const ready = cur.timingsReady || cur.seekTime != null;
+    if(!cur.trimApplied && ready){
       cur.trimApplied = true;
       if(cur.playStart > 0.3 && Math.abs(els.audio.currentTime - cur.playStart) > 1) els.audio.currentTime = cur.playStart;
     }
