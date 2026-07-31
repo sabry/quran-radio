@@ -111,32 +111,36 @@
     width:100%;
     max-width:440px;
     display:flex;
-    gap:6px;
+    gap:4px;
     margin-top:10px;
     padding:4px;
     border:1px solid var(--line);
-    border-radius:100px;
+    border-radius:20px;
     background:rgba(0,0,0,0.15);
+    overflow-x:auto;
+    scrollbar-width:none;
   }
+  .modebar::-webkit-scrollbar{ display:none; }
   .mode-tab{
     -webkit-tap-highlight-color:transparent;
-    flex:1;
-    min-width:0;
+    flex:1 0 auto;
+    min-width:46px;
     border:none;
     background:none;
     cursor:pointer;
     color:var(--muted);
     font-family:'Work Sans', sans-serif;
-    font-size:10px;
-    letter-spacing:0.6px;
+    font-size:9.5px;
+    letter-spacing:0.4px;
     text-transform:uppercase;
-    padding:9px 4px;
-    border-radius:100px;
+    padding:9px 5px;
+    border-radius:14px;
+    white-space:nowrap;
     transition:color 0.25s ease, background 0.25s ease;
   }
   .mode-tab .ar{
     display:block;
-    font-size:14px;
+    font-size:13px;
     letter-spacing:0;
     line-height:1.2;
   }
@@ -335,6 +339,40 @@
     cursor:pointer;
   }
   .unit-nav:active{ opacity:0.6; }
+
+  /* Du'a card: a single supplication (one or several ayat) shown whole, with
+     its reference underneath. The recitation plays that exact span. */
+  .dua-card{ display:none; margin:16px 0 4px; }
+  body.is-dua .dua-card{ display:block; }
+  .dua-scroll{
+    max-height:46vh;
+    overflow-y:auto;
+    padding:6px 4px;
+    -webkit-mask-image:linear-gradient(180deg, transparent, #000 8%, #000 92%, transparent);
+    mask-image:linear-gradient(180deg, transparent, #000 8%, #000 92%, transparent);
+  }
+  .dua-text{
+    font-family:'hafs18', 'Amiri', serif;
+    direction:rtl;
+    text-align:center;
+    color:var(--parchment);
+    font-size:26px;
+    line-height:2.15;
+  }
+  .dua-text:empty::before{
+    content:'Press play for a supplication';
+    font-family:'Work Sans', sans-serif;
+    font-size:13px;
+    color:var(--muted);
+    opacity:0.8;
+  }
+  .dua-ref{
+    text-align:center;
+    margin-top:14px;
+    font-size:12px;
+    letter-spacing:0.4px;
+    color:var(--muted);
+  }
   .rq-title{
     font-size:10.5px;
     letter-spacing:1.4px;
@@ -714,6 +752,9 @@
     <button class="mode-tab" id="modeMatn" role="tab" aria-selected="false">
       <span class="ar">الشاطبية</span><span class="sub">matn</span>
     </button>
+    <button class="mode-tab" id="modeDua" role="tab" aria-selected="false">
+      <span class="ar">دعاء</span><span class="sub">random</span>
+    </button>
   </div>
 
   <button class="install-btn" id="installBtn" hidden>Install app</button>
@@ -801,6 +842,11 @@
         <button class="unit-nav" id="unitPrev" aria-label="Previous">‹</button>
         <span id="unitPos">—</span>
         <button class="unit-nav" id="unitNext" aria-label="Next">›</button>
+      </div>
+
+      <div class="dua-card" id="duaCard">
+        <div class="dua-scroll"><div class="dua-text" id="duaText"></div></div>
+        <div class="dua-ref" id="duaRef">—</div>
       </div>
 
       <div class="divider"></div>
@@ -1026,6 +1072,7 @@
   ];
   let matnMode = false;
   let unitMode = false;
+  let duaMode = false;
   let shatAyat = null;       // { n: {sadr, ajz} }, fetched at runtime
   let shatTitles = null;     // { firstBaytOfChapter: title }
   let shatTextPromise = null;
@@ -1206,7 +1253,11 @@
     unitNext: document.getElementById('unitNext'),
     unitScroll: document.getElementById('unitScroll'),
     unitTrack: document.getElementById('unitTrack'),
-    unitThumb: document.getElementById('unitThumb')
+    unitThumb: document.getElementById('unitThumb'),
+    modeDua: document.getElementById('modeDua'),
+    duaCard: document.getElementById('duaCard'),
+    duaText: document.getElementById('duaText'),
+    duaRef: document.getElementById('duaRef')
   };
   let matnLines = [];       // DOM .matn-line elements for the current range
   let matnShownLine = -1;   // line the reader is currently scrolled to
@@ -1656,13 +1707,14 @@
     if(cur && cur.matn){ nextBayt(); return; }     // in matn, "next" = next bayt
     if(cur && cur.review){ nextRub(); return; }    // in review, "next" = next quarter-hizb
     if(cur && cur.unit){ unitNextUnit(); return; } // werd/tajwid, "next" = next unit
+    if(cur && cur.dua){ duaNext(true); return; }   // du'a, "next" = another at random
     advance();
   }
 
   function rewind(){
     // Matn rewinds freely to the file start (before the chosen range); review
     // and unit modes floor at the unit's start.
-    const floor = cur ? (cur.matn ? 0 : (cur.review ? (cur.playStart || 0) : (cur.unit ? (cur.playStart || 0) : (cur.chunked ? cur.chunkStart : 0)))) : 0;
+    const floor = cur ? (cur.matn ? 0 : ((cur.review || cur.unit || cur.dua) ? (cur.playStart || 0) : (cur.chunked ? cur.chunkStart : 0))) : 0;
     els.audio.currentTime = Math.max(floor, els.audio.currentTime - REWIND_SECONDS);
     if(cur && cur.matn) matnCheckRoam();
   }
@@ -1682,6 +1734,7 @@
     if(cur.matn){ applyMatnTrim(); return; }
     if(cur.review){ applyReviewTrim(); return; }
     if(cur.unit){ applyUnitTrim(); return; }
+    if(cur.dua){ applyDuaTrim(); return; }
     if(!cur.chunkAssigned){
       cur.chunkAssigned = true;
       // Friday mode plays al-Kahf whole, never chunked.
@@ -1709,6 +1762,7 @@
     if(cur && cur.matn){ if(cur.roam) matnGotoMap(cur.mapIdx + 1, null); else matnAdvance(); return; }
     if(cur && cur.review){ reviewAdvance(); return; }
     if(cur && cur.unit){ unitLoadItem(unitState.itemIdx + 1, null); return; }
+    if(cur && cur.dua){ duaNext(true); return; }
     advance();
   });
 
@@ -1737,6 +1791,9 @@
     } else if(cur && cur.unit){
       if(errorStreak <= 5) unitLoadItem(unitState.itemIdx + 1, null);
       else { setEyebrow('CONNECTION TROUBLE', false); setStatus('Could not load this recitation. Tap › to move on.'); }
+    } else if(cur && cur.dua){
+      if(errorStreak <= 5) duaNext(true);
+      else { setEyebrow('CONNECTION TROUBLE', false); setStatus('Could not load this supplication. Tap next to move on.'); }
     } else if(errorStreak <= 5){
       advance();
     } else {
@@ -1752,6 +1809,7 @@
     if(cur && cur.matn){ handleMatnTimeupdate(d); return; }
     if(cur && cur.review){ handleReviewTimeupdate(d); return; }
     if(cur && cur.unit){ handleUnitTimeupdate(d); return; }
+    if(cur && cur.dua){ handleDuaTimeupdate(d); return; }
     const start = (cur && cur.chunked) ? cur.chunkStart : 0;
     const end = (cur && cur.chunked) ? Math.min(cur.chunkEnd, d) : d;
     const span = Math.max(end - start, 0.01);
@@ -1786,6 +1844,7 @@
     if(cur && cur.review) saveReviewProgress(true);
     if(cur && cur.matn) saveMatnProgress(true);
     if(cur && cur.unit) saveUnitProgress(true);
+    if(cur && cur.dua) saveDuaProgress(true);
   });
 
   // Nothing plays until the listener asks for it. The play button both begins
@@ -1808,11 +1867,15 @@
       else setStatus("Choose a riwāyah and reader, then press Start.");
       return;
     }
+    if(duaMode){
+      if(duaState){ els.audio.play().catch(() => {}); } else { duaNext(true); }
+      return;
+    }
     beginRadio();   // radio or friday: start a fresh track
   }
   els.playBtn.addEventListener('click', togglePlay);
   els.skipBtn.addEventListener('click', skip);
-  els.prevRubBtn.addEventListener('click', () => { if(cur && cur.matn) prevBayt(); else if(cur && cur.unit) unitPrevUnit(); else prevRub(); });
+  els.prevRubBtn.addEventListener('click', () => { if(cur && cur.matn) prevBayt(); else if(cur && cur.unit) unitPrevUnit(); else if(cur && cur.dua) duaPrev(); else prevRub(); });
   els.rewindBtn.addEventListener('click', rewind);
   els.volume.addEventListener('input', () => { els.audio.volume = Number(els.volume.value); });
   window.addEventListener('resize', () => { if(cur && cur.ayat) fitAyah(); });
@@ -2409,19 +2472,177 @@
   }
   function loadUnitProgress(kind){ try{ return JSON.parse(localStorage.getItem(UNIT_KEY + kind)); }catch(e){ return null; } }
 
+  // ================= Duʿāʾ: random Qur'anic supplications =================
+  // A curated set of the Qur'an's own supplications — the "Rabbanā" du'as and
+  // the prophets' du'as — each a surah + ayah span [surah, from, to, title].
+  // Played at random with the text shown; the recitation covers exactly the
+  // du'a's ayat. Reuses buildAyat and the melodic review reciter (Hafs+timing).
+  const DUA_LIST = [
+    [2,201,201,"Good in this world and the next"],
+    [2,127,129,"Ibrāhīm & Ismāʿīl at the Kaʿba"],
+    [2,250,250,"Pour patience upon us"],
+    [2,286,286,"Do not burden us beyond our strength"],
+    [3,8,9,"Let not our hearts deviate"],
+    [3,16,16,"We believe, so forgive us"],
+    [3,26,27,"Master of all Sovereignty"],
+    [3,38,38,"Grant me pure offspring (Zakariyyā)"],
+    [3,53,53,"We believe — record us among the witnesses"],
+    [3,147,147,"Forgive our sins and excesses"],
+    [3,191,194,"Those who reflect on creation"],
+    [7,23,23,"We have wronged ourselves (Ādam)"],
+    [7,89,89,"Decide between us in truth"],
+    [7,126,126,"Pour patience, take us as Muslims"],
+    [10,85,86,"Make us not a trial for the wrongdoers"],
+    [14,35,41,"Ibrāhīm's supplication"],
+    [17,24,24,"Mercy upon my parents"],
+    [17,80,80,"An entrance of truth, an exit of truth"],
+    [18,10,10,"Mercy and guidance from Yourself"],
+    [20,25,28,"Expand my chest for me (Mūsā)"],
+    [20,114,114,"My Lord, increase me in knowledge"],
+    [21,83,83,"Harm has touched me (Ayyūb)"],
+    [21,87,87,"None worthy of worship but You (Yūnus)"],
+    [21,89,89,"Leave me not childless (Zakariyyā)"],
+    [23,97,98,"Refuge from the whispers of devils"],
+    [23,109,109,"We believe, so forgive us and have mercy"],
+    [23,118,118,"Forgive and have mercy — best of the merciful"],
+    [25,65,66,"Avert from us the punishment of Hell"],
+    [25,74,74,"Coolness of our eyes"],
+    [27,19,19,"Enable me to be grateful (Sulaymān)"],
+    [28,16,16,"I have wronged myself, so forgive me (Mūsā)"],
+    [28,24,24,"I am in need of whatever good You send"],
+    [40,7,9,"Prayer of the bearers of the Throne"],
+    [46,15,15,"Enable me to thank You for Your favour"],
+    [59,10,10,"Forgive us and our brethren in faith"],
+    [60,4,5,"Upon You we rely (Ibrāhīm)"],
+    [66,8,8,"Perfect our light and forgive us"],
+    [66,11,11,"Build me a house near You (Āsiya)"]
+  ];
+  const DUA_KEY = 'muqri.dua.v1';
+  let duaState = null;   // { idx }
+  let duaHistory = [];   // recently shown indices, for prev
+  let lastDuaSave = 0;
+
+  function duaTrack(surahId){
+    const rec = currentReciter();
+    const info = suwarMap[surahId] || { ar: 'سورة ' + surahId, en: 'Surah ' + surahId };
+    return {
+      riwayahId: 1, server: rec.server, reciterAr: rec.nameAr,
+      surahId, surahAr: info.ar, surahEn: info.en,
+      audioUrl: rec.server + pad3(surahId) + '.mp3'
+    };
+  }
+  function pickDuaIdx(){
+    if(DUA_LIST.length <= 1) return 0;
+    let i, guard = 0;
+    do{ i = Math.floor(Math.random() * DUA_LIST.length); } while(duaState && i === duaState.idx && ++guard < 8);
+    return i;
+  }
+  function duaLoad(idx, seekTime, autoplay){
+    const row = DUA_LIST[idx];
+    if(!row) return;
+    const surahId = row[0], from = row[1], to = row[2], title = row[3];
+    duaState = { idx };
+    const track = duaTrack(surahId);
+    const token = ++reviewToken;
+    cur = {
+      dua: true, track, ayat: null, duaAyat: null, font: 'hafs18',
+      from, to, title, startT0: 0, endT1: null, playStart: 0, playEnd: Infinity,
+      seekTime: (seekTime != null ? seekTime : null),
+      trimApplied: false, timingsReady: false, recoveries: 0, resumeAt: null, token
+    };
+    lastPos = 0;
+    hideAyahPanel();
+    els.duaText.textContent = '';
+    els.duaRef.textContent = (track.surahEn || ('Surah ' + surahId)) + ' · ' + surahId + ':' + (from === to ? from : (from + '–' + to));
+    setEyebrow('SUPPLICATION', false);
+    els.surahName.textContent = track.surahAr;
+    els.surahMeta.textContent = title;
+    els.reciterName.textContent = track.reciterAr;
+    els.riwayahName.textContent = riwayahArMap[1] || 'حفص عن عاصم';
+    els.audio.src = track.audioUrl;
+    if(autoplay) els.audio.play().catch(() => {});
+    buildAyat(track).then(res => {
+      if(!cur || cur.token !== token) return;
+      if(res){
+        cur.ayat = res.ayat; cur.font = res.font;
+        const inRange = res.ayat.filter(a => a.n >= from && a.n <= to);
+        cur.duaAyat = inRange;
+        const sA = res.ayat.find(a => a.n === from); if(sA) cur.startT0 = sA.t0;
+        const eA = res.ayat.find(a => a.n === to); if(eA) cur.endT1 = eA.t1;
+        els.duaText.innerHTML = inRange.map(a =>
+          '<span style="font-family:\'' + (cur.font || 'hafs18') + '\',Amiri,serif">' + a.text + '</span>').join(' ');
+      }
+      cur.timingsReady = true;
+      applyDuaTrim();
+    }).catch(() => { if(cur && cur.token === token){ cur.timingsReady = true; applyDuaTrim(); } });
+    saveDuaProgress(true);
+  }
+  function applyDuaTrim(){
+    if(!cur || !cur.dua) return;
+    const d = els.audio.duration;
+    if(!isFinite(d) || d <= 0) return;
+    cur.playStart = cur.seekTime != null ? cur.seekTime : (cur.startT0 || 0);
+    cur.playEnd = cur.endT1 != null ? cur.endT1 : d;
+    const ready = cur.timingsReady || cur.seekTime != null;
+    if(!cur.trimApplied && ready){
+      cur.trimApplied = true;
+      if(cur.playStart > 0.3 && Math.abs(els.audio.currentTime - cur.playStart) > 1) els.audio.currentTime = cur.playStart;
+    }
+    cur.seekTime = null;
+  }
+  function handleDuaTimeupdate(d){
+    const t = els.audio.currentTime;
+    lastPos = t;
+    if(!cur.trimApplied){ applyDuaTrim(); if(!cur.trimApplied) return; }
+    if(t >= cur.playEnd - 0.2){
+      if(!advancing){ advancing = true; Promise.resolve(duaNext(true)).finally(() => { advancing = false; }); }
+      return;
+    }
+    const span = Math.max(cur.playEnd - cur.playStart, 0.01);
+    const rel = Math.min(Math.max(t - cur.playStart, 0), span);
+    els.barFill.style.width = (rel / span * 100) + '%';
+    els.timeElapsed.textContent = fmtTime(rel);
+    els.timeTotal.textContent = fmtTime(span);
+    saveDuaProgress(false);
+  }
+  function duaNext(autoplay){
+    if(duaState){ duaHistory.push(duaState.idx); if(duaHistory.length > 50) duaHistory.shift(); }
+    duaLoad(pickDuaIdx(), null, autoplay !== false);
+  }
+  function duaPrev(){
+    if(!duaHistory.length){ duaLoad(pickDuaIdx(), null, true); return; }
+    duaLoad(duaHistory.pop(), null, true);
+  }
+  function saveDuaProgress(force){
+    if(!duaState || !cur || !cur.dua) return;
+    const now = Date.now();
+    if(!force && now - lastDuaSave < 2500) return;
+    lastDuaSave = now;
+    try{ localStorage.setItem(DUA_KEY, JSON.stringify({ idx: duaState.idx, time: els.audio.currentTime, at: now })); }catch(e){}
+  }
+  function loadDuaProgress(){ try{ return JSON.parse(localStorage.getItem(DUA_KEY)); }catch(e){ return null; } }
+  function prepareDua(){
+    const saved = loadDuaProgress();
+    const useSaved = saved && saved.idx != null && saved.idx < DUA_LIST.length;
+    const idx = useSaved ? saved.idx : pickDuaIdx();
+    duaLoad(idx, useSaved ? (saved.time || null) : null, false);   // preload paused → play resumes
+  }
+
   function setMode(name){
     if(name === mode) return;
     if(mode === 'review' && cur && cur.review) saveReviewProgress(true);
     if(mode === 'matn' && cur && cur.matn) saveMatnProgress(true);
     if((mode === 'werd' || mode === 'tajweed') && cur && cur.unit) saveUnitProgress(true);
+    if(mode === 'dua' && cur && cur.dua) saveDuaProgress(true);
     mode = name;
     fridayMode = name === 'friday';
     reviewMode = name === 'review';
     matnMode = name === 'matn';
     unitMode = name === 'werd' || name === 'tajweed';
     unitKind = unitMode ? name : null;
+    duaMode = name === 'dua';
     [['radio', els.modeRadio], ['friday', els.modeFriday], ['review', els.modeReview],
-     ['matn', els.modeMatn], ['werd', els.modeWerd], ['tajweed', els.modeTajweed]]
+     ['matn', els.modeMatn], ['werd', els.modeWerd], ['tajweed', els.modeTajweed], ['dua', els.modeDua]]
       .forEach(([n, el]) => {
         const on = n === name;
         el.classList.toggle('active', on);
@@ -2432,6 +2653,7 @@
       : name === 'matn' ? "Matn · Ash-Shāṭibiyyah"
       : name === 'werd' ? "Werd · juz' by juz'"
       : name === 'tajweed' ? "Tajwīd · rubʿ by rubʿ"
+      : name === 'dua' ? "Duʿāʾ · supplications"
       : "Random Qira'at Radio";
     els.reviewSetup.style.display = reviewMode ? 'block' : 'none';
     els.matnSetup.style.display = matnMode ? 'block' : 'none';
@@ -2439,6 +2661,7 @@
     document.body.classList.toggle('is-review', reviewMode);
     document.body.classList.toggle('is-matn', matnMode);
     document.body.classList.toggle('is-unit', unitMode);
+    document.body.classList.toggle('is-dua', duaMode);
     // Switching tabs never auto-plays; it pauses and resets to a ready state,
     // then waits for the play button (radio/friday) or Start (review).
     els.audio.pause();
@@ -2484,6 +2707,18 @@
       setEyebrow('LOADING…', true);
       loadTimingReads().then(() => { populateUnitReciters(); setEyebrow('CHOOSE A RECITER', false); prepareUnitSetup(); })
         .catch(() => { setEyebrow('CONNECTION TROUBLE', false); setStatus('Could not load reciters.'); });
+    } else if(duaMode){
+      duaState = null; duaHistory = [];
+      els.duaText.textContent = '';
+      els.duaRef.textContent = '—';
+      els.surahName.textContent = '—';
+      els.surahMeta.innerHTML = '&nbsp;';
+      els.reciterName.textContent = '—';
+      els.riwayahName.textContent = '—';
+      setEyebrow('LOADING…', true);
+      loadTimingReads()
+        .then(() => { setEyebrow('PRESS PLAY', false); prepareDua(); })
+        .catch(() => { setEyebrow('CONNECTION TROUBLE', false); setStatus('Could not load supplications.'); });
     } else {
       setEyebrow('PRESS PLAY', false);
       els.surahName.textContent = '—';
@@ -2499,6 +2734,7 @@
   els.modeMatn.addEventListener('click', () => setMode('matn'));
   els.modeWerd.addEventListener('click', () => setMode('werd'));
   els.modeTajweed.addEventListener('click', () => setMode('tajweed'));
+  els.modeDua.addEventListener('click', () => setMode('dua'));
 
   // ---- Review mode ------------------------------------------------------
 
@@ -2942,11 +3178,13 @@
     if(cur && cur.review) saveReviewProgress(true);
     if(cur && cur.matn) saveMatnProgress(true);
     if(cur && cur.unit) saveUnitProgress(true);
+    if(cur && cur.dua) saveDuaProgress(true);
   });
   document.addEventListener('visibilitychange', () => {
     if(document.hidden && cur && cur.review) saveReviewProgress(true);
     if(document.hidden && cur && cur.matn) saveMatnProgress(true);
     if(document.hidden && cur && cur.unit) saveUnitProgress(true);
+    if(document.hidden && cur && cur.dua) saveDuaProgress(true);
   });
 
   // ---- Werd / Tajwid mode UI --------------------------------------------
