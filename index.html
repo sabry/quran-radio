@@ -1556,8 +1556,11 @@
   }
 
   function rewind(){
-    const floor = cur ? ((cur.review || cur.matn) ? (cur.playStart || 0) : (cur.chunked ? cur.chunkStart : 0)) : 0;
+    // Matn rewinds freely to the file start (before the chosen range); review
+    // floors at the range start.
+    const floor = cur ? (cur.matn ? 0 : (cur.review ? (cur.playStart || 0) : (cur.chunked ? cur.chunkStart : 0))) : 0;
     els.audio.currentTime = Math.max(floor, els.audio.currentTime - REWIND_SECONDS);
+    if(cur && cur.matn) matnCheckRoam();
   }
 
   // Once the mp3's duration is known, decide whether this surah gets chunked
@@ -1598,7 +1601,7 @@
   });
 
   els.audio.addEventListener('ended', () => {
-    if(cur && cur.matn){ matnAdvance(); return; }
+    if(cur && cur.matn){ if(cur.roam) matnGotoMap(cur.mapIdx + 1, null); else matnAdvance(); return; }
     if(cur && cur.review){ reviewAdvance(); return; }
     advance();
   });
@@ -1785,30 +1788,27 @@
     matnLoadRow(idx, seek);
   }
 
-  function matnLoadRow(idx, seekTime){
-    if(!matnState) return;
-    const token = ++matnToken;
-    matnState.idx = idx;
-    if(idx >= matnState.rows.length){ matnComplete(); return; }
-    const row = matnState.rows[idx];
+  // Load a chapter and play it. `from`/`to` bound the initial seek + display;
+  // `roam` marks that we've left the chosen range (frees the auto-stop).
+  function matnPlayRow(row, from, to, startAt, roam){
     const url = shatAudioUrl(row[0]);
-    if(!url){ matnAdvance(); return; }   // no recording for this chapter
-    const from = Math.max(matnState.from, row[1]);
-    const to = Math.min(matnState.to, row[2]);
+    if(!url) return false;
+    const token = ++matnToken;
     cur = {
-      matn: true, row, rowFrom: from, rowTo: to,
+      matn: true, roam: !!roam, mapIdx: SHAT_MAP.indexOf(row), row,
+      rowFrom: from, rowTo: to,
       count: row[2] - row[1] + 1, perBayt: 0, playStart: 0, playEnd: Infinity,
-      curBayt: null,
-      seekTime: (typeof seekTime === 'number' ? seekTime : null),
-      seekBayt: (seekTime && seekTime.bayt) || null,
-      seekLast: !!(seekTime && seekTime.last),
+      curBayt: null, audioBayt: null, trimApplied: false,
+      seekTime: (typeof startAt === 'number' ? startAt : null),
+      seekBayt: (startAt && startAt.bayt) || null,
+      seekLast: !!(startAt && startAt.last),
       recoveries: 0, resumeAt: null, token,
       track: { audioUrl: url }
     };
     lastPos = 0;
     hideAyahPanel();
     matnOffset = 0; matnShownLine = from;
-    matnScrollToPos(from);   // position the reader at this chapter's first bayt
+    matnScrollToPos(from);
     matnSetSlider(from);
     els.eyebrow.textContent = 'الشاطبية';
     els.eyebrow.classList.remove('loading');
@@ -1817,7 +1817,26 @@
     els.riwayahName.textContent = "Ash-Shāṭibiyyah  ·  الشاطبية";
     els.audio.src = cur.track.audioUrl;
     els.audio.play().then(() => updateMatnMedia()).catch(() => {});
-    matnRenderQueue();
+    return true;
+  }
+
+  function matnLoadRow(idx, seekTime){
+    if(!matnState) return;
+    matnState.idx = idx;
+    if(idx >= matnState.rows.length){ matnComplete(); return; }
+    const row = matnState.rows[idx];
+    const from = Math.max(matnState.from, row[1]);
+    const to = Math.min(matnState.to, row[2]);
+    if(!matnPlayRow(row, from, to, seekTime, false)) matnAdvance();
+  }
+
+  // Jump to any chapter of the whole matn (used by prev/next when roaming past
+  // the chosen range). Skips the audio-less khatimah.
+  function matnGotoMap(mapIdx, startAt){
+    if(mapIdx < 0 || mapIdx >= SHAT_MAP.length) return;
+    const row = SHAT_MAP[mapIdx];
+    if(row[0] <= 0) return;   // no recording (khatimah) — nothing to roam into
+    matnPlayRow(row, row[1], row[2], startAt, true);
   }
 
   function applyMatnTrim(){
@@ -1910,14 +1929,13 @@
     const t = els.audio.currentTime;
     lastPos = t;
     if(!cur.trimApplied){ applyMatnTrim(); if(!cur.trimApplied) return; }
-    if(t >= cur.playEnd - 0.15){
+    if(!cur.roam && t >= cur.playEnd - 0.15){
       const moreRows = matnState && matnState.idx < matnState.rows.length - 1;
       if(moreRows){
         if(!advancing){ advancing = true; matnAdvance().finally(() => { advancing = false; }); }
       } else {
-        // End of the whole range: stop here and hold (don't run into later
-        // abyat). Enforced whether or not a session is still active, so replay
-        // and rewind stay inside the range.
+        // End of the chosen range (hands-off): stop and hold. Manual nav sets
+        // cur.roam, which skips this so the transport can leave the range.
         els.audio.pause();
         if(els.audio.currentTime > cur.playEnd) els.audio.currentTime = Math.max(cur.playStart, cur.playEnd - 0.05);
         if(matnState) matnComplete();
@@ -1941,25 +1959,27 @@
     await matnLoadRow(next, null);
   }
 
+  // Once outside the chosen range, unlock the auto-stop so playback roams freely.
+  function matnCheckRoam(){
+    if(cur && cur.matn && (els.audio.currentTime < cur.playStart - 0.2 || els.audio.currentTime > cur.playEnd + 0.2)) cur.roam = true;
+  }
   function nextBayt(){
     if(!cur || !cur.matn || !cur.perBayt) return;
+    const d = els.audio.duration;
     const target = (cur.curBayt - cur.row[1] + 1) * cur.perBayt + 0.05;
-    if(target < cur.playEnd - 0.1){ els.audio.currentTime = target; if(els.audio.paused) els.audio.play().catch(()=>{}); }
-    else matnAdvance();
+    if(isFinite(d) && target >= d - 0.1){ matnGotoMap(cur.mapIdx + 1, null); return; }  // into next chapter
+    els.audio.currentTime = target;
+    matnCheckRoam();
+    if(els.audio.paused) els.audio.play().catch(() => {});
   }
   function prevBayt(){
     if(!cur || !cur.matn || !cur.perBayt) return;
     const startOfCur = (cur.curBayt - cur.row[1]) * cur.perBayt;
     if(els.audio.currentTime > startOfCur + 2.5){ els.audio.currentTime = startOfCur; }
-    else if(cur.curBayt > cur.rowFrom){ els.audio.currentTime = Math.max(cur.playStart, startOfCur - cur.perBayt + 0.05); }
-    else if(matnState.idx > 0){ matnLoadPrev(); return; }
-    else els.audio.currentTime = cur.playStart;
-    if(els.audio.paused) els.audio.play().catch(()=>{});
-  }
-  async function matnLoadPrev(){
-    const prev = matnState.idx - 1;
-    if(prev < 0) return;
-    await matnLoadRow(prev, { last: true });
+    else if(cur.curBayt > cur.row[1]){ els.audio.currentTime = Math.max(0, startOfCur - cur.perBayt + 0.05); }
+    else { matnGotoMap(cur.mapIdx - 1, { last: true }); return; }   // into previous chapter
+    matnCheckRoam();
+    if(els.audio.paused) els.audio.play().catch(() => {});
   }
 
   function matnComplete(){
