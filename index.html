@@ -2950,37 +2950,42 @@
   });
 
   // ---- Werd / Tajwid mode UI --------------------------------------------
-  let unitSelRiwayah = null;        // currently selected riwayah id
-  const unitSelReader = {};         // riwayahId -> chosen read id
+  // Werd and Tajwid keep their own riwayah + reader choices (independent), each
+  // persisted so it sticks across sessions. uSel() is the active tab's slot.
+  const unitSel = { werd: { riwayah: null, reader: {} }, tajweed: { riwayah: null, reader: {} } };
+  function uSel(){ return unitSel[unitKind] || (unitSel[unitKind] = { riwayah: null, reader: {} }); }
   function lsNum(k){ try{ return parseInt(localStorage.getItem(k), 10); }catch(e){ return NaN; } }
 
   function populateUnitReciters(){
     const avail = UNIT_RIWAYAT.filter(rid => (unitReciters[rid] || []).length);
     if(!avail.length){ setStatus('No reciters with text are available right now.'); return; }
-    if(avail.indexOf(unitSelRiwayah) === -1){
-      const saved = lsNum('muqri.unit.riwayah');
-      unitSelRiwayah = avail.indexOf(saved) !== -1 ? saved : avail[0];
+    const sel = uSel();
+    if(avail.indexOf(sel.riwayah) === -1){
+      const saved = lsNum('muqri.unit.riwayah.' + unitKind);
+      sel.riwayah = avail.indexOf(saved) !== -1 ? saved : avail[0];
     }
     els.unitRewaya.innerHTML = avail.map(rid =>
-      '<option value="' + rid + '"' + (rid === unitSelRiwayah ? ' selected' : '') + '>' +
+      '<option value="' + rid + '"' + (rid === sel.riwayah ? ' selected' : '') + '>' +
       (riwayahArMap[rid] || RIWAYAH_LABEL[rid]) + '</option>').join('');
     fillUnitReaders();
   }
   function fillUnitReaders(){
-    const list = unitReciters[unitSelRiwayah] || [];
-    let sel = unitSelReader[unitSelRiwayah];
-    if(sel == null){
-      const saved = lsNum('muqri.unit.reader.' + unitSelRiwayah);
-      sel = list.some(r => r.id === saved) ? saved : (list[0] && list[0].id);
+    const sel = uSel();
+    const rid = sel.riwayah;
+    const list = unitReciters[rid] || [];
+    let rd = sel.reader[rid];
+    if(rd == null){
+      const saved = lsNum('muqri.unit.reader.' + unitKind + '.' + rid);
+      rd = list.some(r => r.id === saved) ? saved : (list[0] && list[0].id);
     }
-    if(!list.some(r => r.id === sel)) sel = list[0] && list[0].id;
-    unitSelReader[unitSelRiwayah] = sel;
+    if(!list.some(r => r.id === rd)) rd = list[0] && list[0].id;
+    sel.reader[rid] = rd;
     els.unitReaderSel.innerHTML = list.map(r =>
-      '<option value="' + r.id + '"' + (r.id === sel ? ' selected' : '') + '>' + r.nameAr + '</option>').join('');
+      '<option value="' + r.id + '"' + (r.id === rd ? ' selected' : '') + '>' + r.nameAr + '</option>').join('');
     if(!unitState){
-      const rd = list.find(r => r.id === sel);
-      els.reciterName.textContent = rd ? rd.nameAr : '—';
-      els.riwayahName.textContent = riwayahArMap[unitSelRiwayah] || RIWAYAH_LABEL[unitSelRiwayah] || '—';
+      const r = list.find(x => x.id === rd);
+      els.reciterName.textContent = r ? r.nameAr : '—';
+      els.riwayahName.textContent = riwayahArMap[rid] || RIWAYAH_LABEL[rid] || '—';
     }
   }
   function prepareUnitSetup(){
@@ -2997,9 +3002,10 @@
     }
   }
   function buildUnitCtx(){
-    const rid = unitSelRiwayah;
+    const sel = uSel();
+    const rid = sel.riwayah;
     const list = unitReciters[rid] || [];
-    const rd = list.find(r => r.id === unitSelReader[rid]) || list[0];
+    const rd = list.find(r => r.id === sel.reader[rid]) || list[0];
     if(!rd) return null;
     unitCtx = {
       riwayahId: rid, readId: rd.id, server: rd.server, nameAr: rd.nameAr,
@@ -3008,6 +3014,14 @@
     return unitCtx;
   }
   function startUnit(idx, resume){
+    // Resuming restores the exact riwayah + reader that was playing.
+    if(resume && resume.riwayahId != null && (unitReciters[resume.riwayahId] || []).length){
+      const sel = uSel();
+      sel.riwayah = resume.riwayahId;
+      if(resume.readId != null && unitReciters[resume.riwayahId].some(r => r.id === resume.readId))
+        sel.reader[resume.riwayahId] = resume.readId;
+      populateUnitReciters();
+    }
     if(!buildUnitCtx()){ setStatus('No reader available for this riwāyah.'); return; }
     idx = Math.max(0, Math.min(unitTotal(unitKind) - 1, idx | 0));
     unitState = { kind: unitKind, total: unitTotal(unitKind), idx, items: [], label: '', itemIdx: 0 };
@@ -3024,17 +3038,19 @@
   }
 
   els.unitRewaya.addEventListener('change', () => {
-    unitSelRiwayah = parseInt(els.unitRewaya.value, 10) || unitSelRiwayah;
-    try{ localStorage.setItem('muqri.unit.riwayah', String(unitSelRiwayah)); }catch(e){}
+    const sel = uSel();
+    sel.riwayah = parseInt(els.unitRewaya.value, 10) || sel.riwayah;
+    try{ localStorage.setItem('muqri.unit.riwayah.' + unitKind, String(sel.riwayah)); }catch(e){}
     fillUnitReaders();
     // Switching riwayah mid-session restarts the current unit in the new one.
     if(unitState && cur && cur.unit){ buildUnitCtx(); unitLoadItem(unitState.itemIdx, els.audio.currentTime); }
   });
   els.unitReaderSel.addEventListener('change', () => {
-    const rid = unitSelRiwayah;
-    unitSelReader[rid] = parseInt(els.unitReaderSel.value, 10);
-    try{ localStorage.setItem('muqri.unit.reader.' + rid, String(unitSelReader[rid])); }catch(e){}
-    if(!unitState){ const rd = (unitReciters[rid] || []).find(r => r.id === unitSelReader[rid]); if(rd) els.reciterName.textContent = rd.nameAr; }
+    const sel = uSel();
+    const rid = sel.riwayah;
+    sel.reader[rid] = parseInt(els.unitReaderSel.value, 10);
+    try{ localStorage.setItem('muqri.unit.reader.' + unitKind + '.' + rid, String(sel.reader[rid])); }catch(e){}
+    if(!unitState){ const rd = (unitReciters[rid] || []).find(r => r.id === sel.reader[rid]); if(rd) els.reciterName.textContent = rd.nameAr; }
     if(unitState && cur && cur.unit){ buildUnitCtx(); unitLoadItem(unitState.itemIdx, els.audio.currentTime); }
   });
   els.unitStart.addEventListener('click', () => {
