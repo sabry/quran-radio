@@ -121,25 +121,29 @@
   .mode-tab{
     -webkit-tap-highlight-color:transparent;
     flex:1;
+    min-width:0;
     border:none;
     background:none;
     cursor:pointer;
     color:var(--muted);
     font-family:'Work Sans', sans-serif;
-    font-size:11px;
-    letter-spacing:1.2px;
+    font-size:10px;
+    letter-spacing:0.6px;
     text-transform:uppercase;
-    padding:9px 8px;
+    padding:9px 4px;
     border-radius:100px;
     transition:color 0.25s ease, background 0.25s ease;
   }
   .mode-tab .sub{
     display:block;
-    font-size:9px;
-    letter-spacing:0.6px;
+    font-size:8px;
+    letter-spacing:0.2px;
     text-transform:none;
     opacity:0.7;
     margin-top:2px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
   }
   .mode-tab.active{
     color:var(--gold);
@@ -224,7 +228,8 @@
 
   .review-only{ display:none; }
   body.is-review .review-only,
-  body.is-matn .review-only{ display:inline-flex; }
+  body.is-matn .review-only,
+  body.is-unit .review-only{ display:inline-flex; }
 
   .review-queue{ display:none; margin-top:20px; }
   body.is-review #reviewQueue{ display:block; }
@@ -246,7 +251,9 @@
     -webkit-mask-image:linear-gradient(180deg, transparent, #000 18%, #000 82%, transparent);
     mask-image:linear-gradient(180deg, transparent, #000 18%, #000 82%, transparent);
   }
-  body.is-matn .matn-reader{ display:block; }
+  body.is-matn #matnReader{ display:block; }
+  body.is-unit #unitReader{ display:block; }
+  #unitReader{ display:none; }
   .matn-scroll{
     position:absolute;
     left:8px; right:34px; top:0;
@@ -279,7 +286,8 @@
     touch-action:none;
     cursor:pointer;
   }
-  body.is-matn .matn-track{ display:block; }
+  body.is-matn #matnTrack{ display:block; }
+  body.is-unit #unitTrack{ display:block; }
   .matn-thumb{
     position:absolute;
     left:-7px; top:0;
@@ -299,6 +307,28 @@
     margin-top:2px;
   }
   body:not(.is-matn) .matn-hint{ display:none; }
+  .unit-hint{
+    display:none;
+    align-items:center;
+    justify-content:center;
+    gap:16px;
+    margin-top:4px;
+    font-size:12px;
+    color:var(--parchment);
+    letter-spacing:0.4px;
+  }
+  body.is-unit .unit-hint{ display:flex; }
+  .unit-nav{
+    background:rgba(255,255,255,0.06);
+    border:1px solid rgba(255,255,255,0.12);
+    color:var(--gold);
+    width:34px; height:34px;
+    border-radius:50%;
+    font-size:20px;
+    line-height:1;
+    cursor:pointer;
+  }
+  .unit-nav:active{ opacity:0.6; }
   .rq-title{
     font-size:10.5px;
     letter-spacing:1.4px;
@@ -672,6 +702,12 @@
     <button class="mode-tab" id="modeMatn" role="tab" aria-selected="false">
       Matn<span class="sub">الشاطبية</span>
     </button>
+    <button class="mode-tab" id="modeWerd" role="tab" aria-selected="false">
+      Werd<span class="sub">By juz'</span>
+    </button>
+    <button class="mode-tab" id="modeTajweed" role="tab" aria-selected="false">
+      Tajwīd<span class="sub">By rubʿ</span>
+    </button>
   </div>
 
   <button class="install-btn" id="installBtn" hidden>Install app</button>
@@ -717,6 +753,25 @@
         </div>
       </div>
 
+      <div class="review-setup" id="unitSetup">
+        <div class="review-row" style="margin-bottom:12px;">
+          <span>Riwāyah</span>
+          <select id="unitRewaya" class="review-select" aria-label="Riwayah"></select>
+        </div>
+        <div class="review-row" style="margin-bottom:12px;">
+          <span>Reader</span>
+          <select id="unitReaderSel" class="review-select" aria-label="Reader"></select>
+        </div>
+        <div class="review-row">
+          <span id="unitStepLabel">Juz'</span>
+          <input type="number" id="unitNum" min="1" max="30" value="1" inputmode="numeric" aria-label="Unit number">
+          <button class="review-start" id="unitStart">Start</button>
+        </div>
+        <div class="review-resume" id="unitResume">
+          <button id="unitResumeBtn"><span class="txt"></span></button>
+        </div>
+      </div>
+
       <div class="eyebrow" id="eyebrow">NOW RECITING</div>
       <div class="surah" id="surahName">—</div>
       <div class="surah-meta" id="surahMeta">&nbsp;</div>
@@ -731,6 +786,16 @@
         <div class="matn-track" id="matnTrack"><div class="matn-thumb" id="matnThumb"></div></div>
       </div>
       <div class="matn-hint">Drag the bar to scroll · the text also follows the recitation</div>
+
+      <div class="matn-reader" id="unitReader">
+        <div class="matn-scroll" id="unitScroll"></div>
+        <div class="matn-track" id="unitTrack"><div class="matn-thumb" id="unitThumb"></div></div>
+      </div>
+      <div class="unit-hint">
+        <button class="unit-nav" id="unitPrev" aria-label="Previous">‹</button>
+        <span id="unitPos">—</span>
+        <button class="unit-nav" id="unitNext" aria-label="Next">›</button>
+      </div>
 
       <div class="divider"></div>
 
@@ -954,6 +1019,7 @@
     [77,1121,1133,146],[78,1134,1159,435],[0,1160,1173,0]
   ];
   let matnMode = false;
+  let unitMode = false;
   let shatAyat = null;       // { n: {sadr, ajz} }, fetched at runtime
   let shatTitles = null;     // { firstBaytOfChapter: title }
   let shatTextPromise = null;
@@ -1117,7 +1183,24 @@
     matnReader: document.getElementById('matnReader'),
     matnScroll: document.getElementById('matnScroll'),
     matnTrack: document.getElementById('matnTrack'),
-    matnThumb: document.getElementById('matnThumb')
+    matnThumb: document.getElementById('matnThumb'),
+    modeWerd: document.getElementById('modeWerd'),
+    modeTajweed: document.getElementById('modeTajweed'),
+    unitSetup: document.getElementById('unitSetup'),
+    unitRewaya: document.getElementById('unitRewaya'),
+    unitReader: document.getElementById('unitReader'),
+    unitReaderSel: document.getElementById('unitReaderSel'),
+    unitStepLabel: document.getElementById('unitStepLabel'),
+    unitNum: document.getElementById('unitNum'),
+    unitStart: document.getElementById('unitStart'),
+    unitResume: document.getElementById('unitResume'),
+    unitResumeBtn: document.getElementById('unitResumeBtn'),
+    unitPos: document.getElementById('unitPos'),
+    unitPrev: document.getElementById('unitPrev'),
+    unitNext: document.getElementById('unitNext'),
+    unitScroll: document.getElementById('unitScroll'),
+    unitTrack: document.getElementById('unitTrack'),
+    unitThumb: document.getElementById('unitThumb')
   };
   let matnLines = [];       // DOM .matn-line elements for the current range
   let matnShownLine = -1;   // line the reader is currently scrolled to
@@ -1212,6 +1295,20 @@
               server: r.folder_url.endsWith('/') ? r.folder_url : r.folder_url + '/'
             }))
             .sort((a, b) => a.nameAr.localeCompare(b.nameAr, 'ar'));
+          // Werd / Tajwid reciter menu: every complete mushaf with timings whose
+          // riwayah has published King Fahd text, grouped by riwayah id.
+          unitReciters = {};
+          (reads || []).forEach(r => {
+            if(r.soar_count !== 114) return;
+            const rid = readRiwayahId(r.rewaya);
+            if(UNIT_RIWAYAT.indexOf(rid) === -1) return;
+            (unitReciters[rid] || (unitReciters[rid] = [])).push({
+              id: r.id, readId: r.id, nameAr: r.name,
+              server: r.folder_url.endsWith('/') ? r.folder_url : r.folder_url + '/'
+            });
+          });
+          Object.keys(unitReciters).forEach(k =>
+            unitReciters[k].sort((a, b) => a.nameAr.localeCompare(b.nameAr, 'ar')));
         })
         .catch(() => {}); // no timings this session; player behaves as before
     }
@@ -1552,13 +1649,14 @@
     setStatus('');
     if(cur && cur.matn){ nextBayt(); return; }     // in matn, "next" = next bayt
     if(cur && cur.review){ nextRub(); return; }    // in review, "next" = next quarter-hizb
+    if(cur && cur.unit){ unitNextUnit(); return; } // werd/tajwid, "next" = next unit
     advance();
   }
 
   function rewind(){
     // Matn rewinds freely to the file start (before the chosen range); review
-    // floors at the range start.
-    const floor = cur ? (cur.matn ? 0 : (cur.review ? (cur.playStart || 0) : (cur.chunked ? cur.chunkStart : 0))) : 0;
+    // and unit modes floor at the unit's start.
+    const floor = cur ? (cur.matn ? 0 : (cur.review ? (cur.playStart || 0) : (cur.unit ? (cur.playStart || 0) : (cur.chunked ? cur.chunkStart : 0)))) : 0;
     els.audio.currentTime = Math.max(floor, els.audio.currentTime - REWIND_SECONDS);
     if(cur && cur.matn) matnCheckRoam();
   }
@@ -1577,6 +1675,7 @@
     }
     if(cur.matn){ applyMatnTrim(); return; }
     if(cur.review){ applyReviewTrim(); return; }
+    if(cur.unit){ applyUnitTrim(); return; }
     if(!cur.chunkAssigned){
       cur.chunkAssigned = true;
       // Friday mode plays al-Kahf whole, never chunked.
@@ -1603,6 +1702,7 @@
   els.audio.addEventListener('ended', () => {
     if(cur && cur.matn){ if(cur.roam) matnGotoMap(cur.mapIdx + 1, null); else matnAdvance(); return; }
     if(cur && cur.review){ reviewAdvance(); return; }
+    if(cur && cur.unit){ unitLoadItem(unitState.itemIdx + 1, null); return; }
     advance();
   });
 
@@ -1628,6 +1728,9 @@
       // Skip a stubborn surah rather than jumping into the random stream.
       if(errorStreak <= 5) reviewAdvance();
       else { setEyebrow('CONNECTION TROUBLE', false); setStatus('Could not load this recitation. Tap Skip to move on.'); }
+    } else if(cur && cur.unit){
+      if(errorStreak <= 5) unitLoadItem(unitState.itemIdx + 1, null);
+      else { setEyebrow('CONNECTION TROUBLE', false); setStatus('Could not load this recitation. Tap › to move on.'); }
     } else if(errorStreak <= 5){
       advance();
     } else {
@@ -1642,6 +1745,7 @@
     lastPos = els.audio.currentTime;
     if(cur && cur.matn){ handleMatnTimeupdate(d); return; }
     if(cur && cur.review){ handleReviewTimeupdate(d); return; }
+    if(cur && cur.unit){ handleUnitTimeupdate(d); return; }
     const start = (cur && cur.chunked) ? cur.chunkStart : 0;
     const end = (cur && cur.chunked) ? Math.min(cur.chunkEnd, d) : d;
     const span = Math.max(end - start, 0.01);
@@ -1663,14 +1767,19 @@
     els.rosette.classList.add('breathe');
     if('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
     if(cur && cur.matn) startMatnTick();
+    if(cur && cur.unit) startUnitTick();
   });
-  els.audio.addEventListener('seeked', () => { if(cur && cur.matn) matnScrollNow(); });
+  els.audio.addEventListener('seeked', () => {
+    if(cur && cur.matn) matnScrollNow();
+    if(cur && cur.unit) unitScrollNow();
+  });
   els.audio.addEventListener('pause', () => {
     els.playIcon.innerHTML = PLAY_ICON;
     els.rosette.classList.remove('breathe');
     if('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
     if(cur && cur.review) saveReviewProgress(true);
     if(cur && cur.matn) saveMatnProgress(true);
+    if(cur && cur.unit) saveUnitProgress(true);
   });
 
   // Nothing plays until the listener asks for it. The play button both begins
@@ -1688,11 +1797,16 @@
       else setStatus('Choose a range of abyāt, then press Start.');
       return;
     }
+    if(unitMode){
+      if(unitState){ els.audio.play().catch(() => {}); }
+      else setStatus("Choose a riwāyah and reader, then press Start.");
+      return;
+    }
     beginRadio();   // radio or friday: start a fresh track
   }
   els.playBtn.addEventListener('click', togglePlay);
   els.skipBtn.addEventListener('click', skip);
-  els.prevRubBtn.addEventListener('click', () => { if(cur && cur.matn) prevBayt(); else prevRub(); });
+  els.prevRubBtn.addEventListener('click', () => { if(cur && cur.matn) prevBayt(); else if(cur && cur.unit) unitPrevUnit(); else prevRub(); });
   els.rewindBtn.addEventListener('click', rewind);
   els.volume.addEventListener('input', () => { els.audio.volume = Number(els.volume.value); });
   window.addEventListener('resize', () => { if(cur && cur.ayat) fitAyah(); });
@@ -2063,15 +2177,240 @@
     matnLoadRow(rowIdx, { bayt: n });
   }
 
+  // ================= Werd / Tajwid: unit-by-unit synced reader =============
+  // Shared engine. Werd steps by juz' (30 units); Tajwid by quarter-hizb (240).
+  // Any riwayah with both timing and King Fahd text is selectable. Text +
+  // timing come from buildAyat(); the reader scrolls by the real ayah timings,
+  // so it is exact (unlike the matn's even division).
+  const UNIT_RIWAYAT = [1, 2, 5, 15, 4, 7, 13];   // riwayat with timing + text
+  const RIWAYAH_LABEL = {
+    1: "حفص عن عاصم", 2: "ورش عن نافع", 5: "قالون عن نافع",
+    15: "شعبة عن عاصم", 4: "البزّي عن ابن كثير", 7: "السوسي عن أبي عمرو",
+    13: "الدوري عن أبي عمرو"
+  };
+  function readRiwayahId(rewaya){
+    if(!rewaya) return 0;
+    if(rewaya.indexOf('حفص') !== -1) return 1;
+    if(rewaya.indexOf('ورش') !== -1) return 2;
+    if(rewaya.indexOf('قالون') !== -1) return 5;
+    if(rewaya.indexOf('شعبة') !== -1) return 15;
+    if(rewaya.indexOf('البز') !== -1) return 4;
+    if(rewaya.indexOf('السوسي') !== -1) return 7;
+    if(rewaya.indexOf('الدوري') !== -1 && rewaya.indexOf('عمرو') !== -1) return 13;
+    return 0;
+  }
+
+  let unitKind = null;          // 'werd' | 'tajweed'
+  let unitCtx = null;           // { riwayahId, server, nameAr, riwayahAr }
+  let unitState = null;         // { kind, total, idx, items:[...], itemIdx, label }
+  let unitReciters = {};        // { riwayahId: [{ id, nameAr, server }] }
+  let unitLines = [];
+  let unitShown = -1;
+  let unitOffset = 0;
+  let unitDragging = false;
+  let unitRaf = null;
+  let lastUnitSave = 0;
+  const UNIT_KEY = 'muqri.unit.';   // + kind
+
+  function unitTotal(kind){ return kind === 'werd' ? 30 : 240; }
+
+  // The (surah,ayah) span of a unit → surah items with start/end ayah.
+  function unitItems(kind, idx){
+    let ss, sa, es, ea, label;
+    if(kind === 'werd'){
+      const j = idx + 1;
+      [ss, sa] = JUZ_START[j];
+      if(j >= 30){ es = QURAN_END[0]; ea = QURAN_END[1]; }
+      else { const [ns, na] = JUZ_START[j + 1]; if(na <= 1){ es = ns - 1; ea = null; } else { es = ns; ea = na - 1; } }
+      label = 'Juz ' + j;
+    } else {
+      const r = RUB_TABLE[idx], nx = RUB_TABLE[idx + 1];
+      ss = r.surah; sa = r.ayah;
+      if(nx){ if(nx.ayah <= 1){ es = nx.surah - 1; ea = null; } else { es = nx.surah; ea = nx.ayah - 1; } }
+      else { es = QURAN_END[0]; ea = QURAN_END[1]; }
+      label = 'Juz ' + r.juz + ' · Ḥizb ' + r.hizb + ' · Rubʿ ' + r.rub;
+    }
+    const items = [];
+    for(let sId = ss; sId <= es; sId++){
+      items.push({ surahId: sId, startAyah: sId === ss ? sa : 1, endAyah: sId === es ? ea : null });
+    }
+    return { items, label };
+  }
+
+  function unitTrack(surahId){
+    const info = suwarMap[surahId] || { ar: 'سورة ' + surahId, en: 'Surah ' + surahId };
+    return {
+      riwayahId: unitCtx.riwayahId, server: unitCtx.server, surahId,
+      surahAr: info.ar, surahEn: info.en,
+      audioUrl: unitCtx.server + pad3(surahId) + '.mp3'
+    };
+  }
+
+  // ---- reader (reuses the matn reader DOM/CSS) ----
+  function unitBuildReader(){
+    if(!cur || !cur.unit || !cur.ayat){ els.unitScroll.innerHTML = ''; unitLines = []; return; }
+    const from = cur.startAyah, to = cur.endAyah;
+    let html = '';
+    for(const a of cur.ayat){
+      if(a.n < from || a.n > to) continue;
+      html += '<div class="matn-line" data-ayah="' + a.n + '">' +
+        '<span class="h" style="font-family:\'' + (cur.font || 'hafs18') + '\',Amiri,serif">' + a.text + '</span>' +
+        '<span class="n">' + cur.track.surahEn + ' · ' + a.n + '</span></div>';
+    }
+    els.unitScroll.innerHTML = html;
+    unitLines = Array.prototype.slice.call(els.unitScroll.querySelectorAll('.matn-line'));
+    unitOffset = 0;
+  }
+  function unitScrollToIndex(idxf){
+    if(!unitLines.length) return;
+    idxf = Math.max(0, Math.min(unitLines.length - 1, idxf));
+    const i = Math.floor(idxf), frac = idxf - i;
+    const a = unitLines[i], b = unitLines[i + 1];
+    const cA = a.offsetTop + a.offsetHeight / 2;
+    const cB = b ? b.offsetTop + b.offsetHeight / 2 : cA + a.offsetHeight;
+    const centre = cA + (cB - cA) * frac;
+    els.unitScroll.style.transform = 'translateY(' + (els.unitReader.clientHeight * 0.38 - centre) + 'px)';
+  }
+  function unitSetThumb(frac){
+    frac = Math.max(0, Math.min(1, frac));
+    const travel = els.unitTrack.clientHeight - els.unitThumb.offsetHeight;
+    els.unitThumb.style.top = (frac * travel) + 'px';
+  }
+  // Fractional line index for the audio clock, from the ayah timings.
+  function unitPosFromTime(t){
+    if(!cur || !cur.ayat || !unitLines.length) return 0;
+    const ay = cur.readerAyat;   // ayat shown in the reader (within range)
+    if(!ay || !ay.length) return 0;
+    let i = 0;
+    for(let k = ay.length - 1; k >= 0; k--){ if(t >= ay[k].t0){ i = k; break; } }
+    const a = ay[i], b = ay[i + 1];
+    const span = b ? Math.max(b.t0 - a.t0, 0.2) : Math.max((a.t1 || a.t0 + 3) - a.t0, 0.2);
+    const frac = Math.min(1, Math.max(0, (t - a.t0) / span));
+    return i + frac;
+  }
+  function unitScrollNow(){
+    if(!cur || !cur.unit || unitDragging || !unitLines.length) return;
+    const pos = unitPosFromTime(els.audio.currentTime) + unitOffset;
+    unitShown = Math.round(pos);
+    unitScrollToIndex(pos);
+    unitSetThumb(unitLines.length > 1 ? pos / (unitLines.length - 1) : 0);
+  }
+  function unitTick(){
+    if(!cur || !cur.unit || els.audio.paused){ unitRaf = null; return; }
+    unitScrollNow();
+    unitRaf = requestAnimationFrame(unitTick);
+  }
+  function startUnitTick(){ if(!unitRaf) unitRaf = requestAnimationFrame(unitTick); }
+
+  function unitLoadItem(itemIdx, seekTime){
+    if(!unitState) return;
+    unitState.itemIdx = itemIdx;
+    if(itemIdx >= unitState.items.length){ unitGoto(unitState.idx + 1, null); return; }  // unit done → next unit
+    const item = unitState.items[itemIdx];
+    const track = unitTrack(item.surahId);
+    const token = ++reviewToken;   // reuse the shared async guard
+    cur = {
+      unit: true, track, ayat: null, readerAyat: null, font: 'hafs18',
+      startAyah: item.startAyah, endAyah: item.endAyah || SURAH_AYAT[item.surahId] || 9999,
+      startT0: 0, endT1: null, playStart: 0, playEnd: Infinity,
+      seekTime: (seekTime != null ? seekTime : null),
+      trimApplied: false, recoveries: 0, resumeAt: null, token
+    };
+    lastPos = 0;
+    hideAyahPanel();
+    els.unitScroll.innerHTML = '';
+    unitLines = []; unitOffset = 0;
+    setEyebrow(unitState.label, false);
+    els.surahName.textContent = track.surahAr;
+    els.surahMeta.textContent = track.surahEn + ' · ' + unitState.label;
+    els.reciterName.textContent = unitCtx.nameAr;
+    els.riwayahName.textContent = unitCtx.riwayahAr;
+    els.audio.src = track.audioUrl;
+    els.audio.play().catch(() => {});
+    buildAyat(track).then(res => {
+      if(!cur || cur.token !== token) return;
+      if(res){
+        cur.ayat = res.ayat; cur.font = res.font;
+        cur.readerAyat = res.ayat.filter(a => a.n >= cur.startAyah && a.n <= cur.endAyah);
+        const sA = res.ayat.find(a => a.n === cur.startAyah); if(sA) cur.startT0 = sA.t0;
+        const eA = res.ayat.find(a => a.n === (item.endAyah || cur.endAyah)); if(eA) cur.endT1 = eA.t1;
+        unitBuildReader();
+      }
+      applyUnitTrim();
+      startUnitTick();
+    }).catch(() => { applyUnitTrim(); });
+  }
+
+  function applyUnitTrim(){
+    if(!cur || !cur.unit) return;
+    const d = els.audio.duration;
+    if(!isFinite(d) || d <= 0) return;
+    cur.playStart = cur.seekTime != null ? cur.seekTime : (cur.startT0 || 0);
+    cur.playEnd = cur.endT1 != null ? cur.endT1 : d;
+    if(!cur.trimApplied){
+      cur.trimApplied = true;
+      if(cur.playStart > 0.3 && Math.abs(els.audio.currentTime - cur.playStart) > 1) els.audio.currentTime = cur.playStart;
+    }
+    cur.seekTime = null;
+    unitScrollNow();
+  }
+
+  function handleUnitTimeupdate(d){
+    const t = els.audio.currentTime;
+    lastPos = t;
+    if(!cur.trimApplied){ applyUnitTrim(); if(!cur.trimApplied) return; }
+    if(t >= cur.playEnd - 0.2){
+      if(!advancing){ advancing = true; Promise.resolve(unitLoadItem(unitState.itemIdx + 1, null)).finally(() => { advancing = false; }); }
+      return;
+    }
+    const span = Math.max(cur.playEnd - cur.playStart, 0.01);
+    const rel = Math.min(Math.max(t - cur.playStart, 0), span);
+    els.barFill.style.width = (rel / span * 100) + '%';
+    els.timeElapsed.textContent = fmtTime(rel);
+    els.timeTotal.textContent = fmtTime(span);
+    startUnitTick();
+    saveUnitProgress(false);
+  }
+
+  function unitGoto(idx, seekTime){
+    if(!unitState) return;
+    idx = Math.max(0, Math.min(unitState.total - 1, idx));
+    const built = unitItems(unitState.kind, idx);
+    unitState.idx = idx; unitState.items = built.items; unitState.label = built.label; unitState.itemIdx = 0;
+    els.unitPos.textContent = built.label;
+    unitLoadItem(0, seekTime);
+    saveUnitProgress(true);
+  }
+  function unitNextUnit(){ if(unitState) unitGoto(unitState.idx + 1, null); }
+  function unitPrevUnit(){ if(unitState) unitGoto(unitState.idx - 1, null); }
+
+  function saveUnitProgress(force){
+    if(!unitState || !cur || !cur.unit || !unitCtx) return;
+    const now = Date.now();
+    if(!force && now - lastUnitSave < 2500) return;
+    lastUnitSave = now;
+    try{
+      localStorage.setItem(UNIT_KEY + unitState.kind, JSON.stringify({
+        riwayahId: unitCtx.riwayahId, readId: unitCtx.readId,
+        idx: unitState.idx, itemIdx: unitState.itemIdx, time: els.audio.currentTime, at: now
+      }));
+    }catch(e){}
+  }
+  function loadUnitProgress(kind){ try{ return JSON.parse(localStorage.getItem(UNIT_KEY + kind)); }catch(e){ return null; } }
+
   function setMode(name){
     if(name === mode) return;
     if(mode === 'review' && cur && cur.review) saveReviewProgress(true);
     if(mode === 'matn' && cur && cur.matn) saveMatnProgress(true);
+    if((mode === 'werd' || mode === 'tajweed') && cur && cur.unit) saveUnitProgress(true);
     mode = name;
     fridayMode = name === 'friday';
     reviewMode = name === 'review';
     matnMode = name === 'matn';
-    [['radio', els.modeRadio], ['friday', els.modeFriday], ['review', els.modeReview], ['matn', els.modeMatn]]
+    unitMode = name === 'werd' || name === 'tajweed';
+    unitKind = unitMode ? name : null;
+    [['radio', els.modeRadio], ['friday', els.modeFriday], ['review', els.modeReview],
+     ['matn', els.modeMatn], ['werd', els.modeWerd], ['tajweed', els.modeTajweed]]
       .forEach(([n, el]) => {
         const on = n === name;
         el.classList.toggle('active', on);
@@ -2080,11 +2419,15 @@
     els.brandTag.textContent = name === 'friday' ? "Friday · Surat al-Kahf"
       : name === 'review' ? "Review · by juz'"
       : name === 'matn' ? "Matn · Ash-Shāṭibiyyah"
+      : name === 'werd' ? "Werd · juz' by juz'"
+      : name === 'tajweed' ? "Tajwīd · rubʿ by rubʿ"
       : "Random Qira'at Radio";
     els.reviewSetup.style.display = reviewMode ? 'block' : 'none';
     els.matnSetup.style.display = matnMode ? 'block' : 'none';
+    els.unitSetup.style.display = unitMode ? 'block' : 'none';
     document.body.classList.toggle('is-review', reviewMode);
     document.body.classList.toggle('is-matn', matnMode);
+    document.body.classList.toggle('is-unit', unitMode);
     // Switching tabs never auto-plays; it pauses and resets to a ready state,
     // then waits for the play button (radio/friday) or Start (review).
     els.audio.pause();
@@ -2118,6 +2461,18 @@
       loadMatn()
         .then(() => { setEyebrow('CHOOSE ABYĀT', false); prepareMatnSetup(); matnRenderQueue(); })
         .catch(() => { setEyebrow('CONNECTION TROUBLE', false); setStatus('Could not load the matn. Check your connection.'); });
+    } else if(unitMode){
+      unitState = null;
+      els.unitScroll.innerHTML = '';
+      els.unitPos.textContent = '—';
+      els.surahName.textContent = '—';
+      els.surahMeta.innerHTML = '&nbsp;';
+      els.reciterName.textContent = '—';
+      els.riwayahName.textContent = '—';
+      els.unitStepLabel.textContent = unitKind === 'werd' ? "Juz'" : "Rubʿ";
+      setEyebrow('LOADING…', true);
+      loadTimingReads().then(() => { populateUnitReciters(); setEyebrow('CHOOSE A RECITER', false); prepareUnitSetup(); })
+        .catch(() => { setEyebrow('CONNECTION TROUBLE', false); setStatus('Could not load reciters.'); });
     } else {
       setEyebrow('PRESS PLAY', false);
       els.surahName.textContent = '—';
@@ -2131,6 +2486,8 @@
   els.modeFriday.addEventListener('click', () => setMode('friday'));
   els.modeReview.addEventListener('click', () => setMode('review'));
   els.modeMatn.addEventListener('click', () => setMode('matn'));
+  els.modeWerd.addEventListener('click', () => setMode('werd'));
+  els.modeTajweed.addEventListener('click', () => setMode('tajweed'));
 
   // ---- Review mode ------------------------------------------------------
 
@@ -2573,11 +2930,143 @@
   window.addEventListener('pagehide', () => {
     if(cur && cur.review) saveReviewProgress(true);
     if(cur && cur.matn) saveMatnProgress(true);
+    if(cur && cur.unit) saveUnitProgress(true);
   });
   document.addEventListener('visibilitychange', () => {
     if(document.hidden && cur && cur.review) saveReviewProgress(true);
     if(document.hidden && cur && cur.matn) saveMatnProgress(true);
+    if(document.hidden && cur && cur.unit) saveUnitProgress(true);
   });
+
+  // ---- Werd / Tajwid mode UI --------------------------------------------
+  let unitSelRiwayah = null;        // currently selected riwayah id
+  const unitSelReader = {};         // riwayahId -> chosen read id
+  function lsNum(k){ try{ return parseInt(localStorage.getItem(k), 10); }catch(e){ return NaN; } }
+
+  function populateUnitReciters(){
+    const avail = UNIT_RIWAYAT.filter(rid => (unitReciters[rid] || []).length);
+    if(!avail.length){ setStatus('No reciters with text are available right now.'); return; }
+    if(avail.indexOf(unitSelRiwayah) === -1){
+      const saved = lsNum('muqri.unit.riwayah');
+      unitSelRiwayah = avail.indexOf(saved) !== -1 ? saved : avail[0];
+    }
+    els.unitRewaya.innerHTML = avail.map(rid =>
+      '<option value="' + rid + '"' + (rid === unitSelRiwayah ? ' selected' : '') + '>' +
+      (riwayahArMap[rid] || RIWAYAH_LABEL[rid]) + '</option>').join('');
+    fillUnitReaders();
+  }
+  function fillUnitReaders(){
+    const list = unitReciters[unitSelRiwayah] || [];
+    let sel = unitSelReader[unitSelRiwayah];
+    if(sel == null){
+      const saved = lsNum('muqri.unit.reader.' + unitSelRiwayah);
+      sel = list.some(r => r.id === saved) ? saved : (list[0] && list[0].id);
+    }
+    if(!list.some(r => r.id === sel)) sel = list[0] && list[0].id;
+    unitSelReader[unitSelRiwayah] = sel;
+    els.unitReaderSel.innerHTML = list.map(r =>
+      '<option value="' + r.id + '"' + (r.id === sel ? ' selected' : '') + '>' + r.nameAr + '</option>').join('');
+    if(!unitState){
+      const rd = list.find(r => r.id === sel);
+      els.reciterName.textContent = rd ? rd.nameAr : '—';
+      els.riwayahName.textContent = riwayahArMap[unitSelRiwayah] || RIWAYAH_LABEL[unitSelRiwayah] || '—';
+    }
+  }
+  function prepareUnitSetup(){
+    els.unitNum.max = unitTotal(unitKind);
+    const saved = loadUnitProgress(unitKind);
+    if(saved && saved.idx != null){
+      els.unitNum.value = saved.idx + 1;
+      const lbl = unitItems(unitKind, saved.idx).label;
+      els.unitResume.querySelector('.txt').textContent = '↻ Resume ' + lbl + '  ' + fmtTime(saved.time || 0);
+      els.unitResume.style.display = 'block';
+    } else {
+      els.unitResume.style.display = 'none';
+      if(!els.unitNum.value) els.unitNum.value = 1;
+    }
+  }
+  function buildUnitCtx(){
+    const rid = unitSelRiwayah;
+    const list = unitReciters[rid] || [];
+    const rd = list.find(r => r.id === unitSelReader[rid]) || list[0];
+    if(!rd) return null;
+    unitCtx = {
+      riwayahId: rid, readId: rd.id, server: rd.server, nameAr: rd.nameAr,
+      riwayahAr: riwayahArMap[rid] || RIWAYAH_LABEL[rid]
+    };
+    return unitCtx;
+  }
+  function startUnit(idx, resume){
+    if(!buildUnitCtx()){ setStatus('No reader available for this riwāyah.'); return; }
+    idx = Math.max(0, Math.min(unitTotal(unitKind) - 1, idx | 0));
+    unitState = { kind: unitKind, total: unitTotal(unitKind), idx, items: [], label: '', itemIdx: 0 };
+    setStatus('');
+    if(resume && resume.itemIdx != null){
+      const built = unitItems(unitKind, idx);
+      unitState.items = built.items; unitState.label = built.label;
+      els.unitPos.textContent = built.label;
+      unitLoadItem(Math.min(resume.itemIdx, built.items.length - 1), resume.time || null);
+      saveUnitProgress(true);
+    } else {
+      unitGoto(idx, null);
+    }
+  }
+
+  els.unitRewaya.addEventListener('change', () => {
+    unitSelRiwayah = parseInt(els.unitRewaya.value, 10) || unitSelRiwayah;
+    try{ localStorage.setItem('muqri.unit.riwayah', String(unitSelRiwayah)); }catch(e){}
+    fillUnitReaders();
+    // Switching riwayah mid-session restarts the current unit in the new one.
+    if(unitState && cur && cur.unit){ buildUnitCtx(); unitLoadItem(unitState.itemIdx, els.audio.currentTime); }
+  });
+  els.unitReaderSel.addEventListener('change', () => {
+    const rid = unitSelRiwayah;
+    unitSelReader[rid] = parseInt(els.unitReaderSel.value, 10);
+    try{ localStorage.setItem('muqri.unit.reader.' + rid, String(unitSelReader[rid])); }catch(e){}
+    if(!unitState){ const rd = (unitReciters[rid] || []).find(r => r.id === unitSelReader[rid]); if(rd) els.reciterName.textContent = rd.nameAr; }
+    if(unitState && cur && cur.unit){ buildUnitCtx(); unitLoadItem(unitState.itemIdx, els.audio.currentTime); }
+  });
+  els.unitStart.addEventListener('click', () => {
+    const n = Math.max(1, Math.min(unitTotal(unitKind), parseInt(els.unitNum.value, 10) || 1));
+    startUnit(n - 1, null);
+  });
+  els.unitResumeBtn.addEventListener('click', () => {
+    const saved = loadUnitProgress(unitKind);
+    if(saved) startUnit(saved.idx, saved);
+  });
+  els.unitPrev.addEventListener('click', () => { if(unitState) unitPrevUnit(); });
+  els.unitNext.addEventListener('click', () => { if(unitState) unitNextUnit(); });
+
+  // Unit reader vertical slider (mirrors the matn slider, but in line units).
+  let unitThumbDrag = false;
+  function unitTrackPointer(e){
+    if(!unitLines.length) return;
+    const r = els.unitTrack.getBoundingClientRect();
+    const frac = Math.max(0, Math.min(1, (e.clientY - r.top) / r.height));
+    unitDragging = true;
+    const idx = frac * (unitLines.length - 1);
+    unitOffset = idx - unitPosFromTime(els.audio.currentTime);
+    unitShown = Math.round(idx);
+    unitSetThumb(frac);
+    unitScrollToIndex(idx);
+  }
+  els.unitTrack.addEventListener('pointerdown', e => {
+    unitThumbDrag = true;
+    try{ els.unitTrack.setPointerCapture(e.pointerId); }catch(_){}
+    unitTrackPointer(e);
+    e.preventDefault();
+  });
+  els.unitTrack.addEventListener('pointermove', e => { if(unitThumbDrag) unitTrackPointer(e); });
+  window.addEventListener('pointerup', () => { if(unitThumbDrag){ unitThumbDrag = false; unitDragging = false; } });
+  els.unitScroll.addEventListener('click', e => {
+    const ln = e.target.closest('.matn-line');
+    if(!ln || !cur || !cur.unit || !unitLines.length) return;
+    const i = unitLines.indexOf(ln);
+    if(i < 0) return;
+    unitOffset = i - unitPosFromTime(els.audio.currentTime);
+    unitScrollNow();
+  });
+  window.addEventListener('resize', () => { if(cur && cur.unit) unitScrollNow(); });
 
   // Radio/Friday: begin a fresh track. Called from the play button (a user
   // gesture, so audio is allowed to start).
