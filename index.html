@@ -1057,6 +1057,11 @@
   let shatAudioUrls = null;    // { fileNumber: url }
   let shatAudioPromise = null;
   const SHAT_KEY = 'muqri.matn.v1';
+  // The matn text and audio index never change, but fetching + parsing them
+  // through the CORS relays is slow. Cache the parsed results so subsequent
+  // opens are instant. Bump the version to invalidate if the parser changes.
+  const MATN_TEXT_CACHE = 'muqri.matn.text.v1';
+  const MATN_AUDIO_CACHE = 'muqri.matn.audio.v1';
   const SHAT_TOTAL = 1173;
   const SHAT_MAP = [
     [2,1,94,883],[3,95,99,54],[4,100,107,81],[5,108,115,80],[6,116,131,151],
@@ -1888,6 +1893,14 @@
   function loadShatText(){
     if(shatTextPromise) return shatTextPromise;
     shatTextPromise = (async () => {
+      // Cache-first: the parsed text is static, so reuse it if we have it.
+      try{
+        const cached = JSON.parse(localStorage.getItem(MATN_TEXT_CACHE) || 'null');
+        if(cached && cached.ay && Object.keys(cached.ay).length >= 1000){
+          shatAyat = cached.ay; shatTitles = cached.titles || {};
+          return shatAyat;
+        }
+      }catch(e){}
       let html = null;
       for(const wrap of CORS_PROXIES){
         try{ const r = await fetch(wrap(SHAT_TEXT_URL)); if(r.ok){ html = await r.text(); break; } }catch(e){}
@@ -1913,6 +1926,7 @@
         }
       }
       shatAyat = ay; shatTitles = titles;
+      try{ localStorage.setItem(MATN_TEXT_CACHE, JSON.stringify({ ay, titles })); }catch(e){}
       return ay;
     })().catch(e => { shatTextPromise = null; throw e; });
     return shatTextPromise;
@@ -1922,6 +1936,11 @@
   function loadShatAudio(){
     if(shatAudioPromise) return shatAudioPromise;
     shatAudioPromise = (async () => {
+      // Cache-first: the archive item's file list is fixed.
+      try{
+        const cached = JSON.parse(localStorage.getItem(MATN_AUDIO_CACHE) || 'null');
+        if(cached && Object.keys(cached).length >= 70){ shatAudioUrls = cached; return cached; }
+      }catch(e){}
       let meta = null;
       for(const wrap of CORS_PROXIES){
         try{ const r = await fetch(wrap(MATN_META_URL)); if(r.ok){ meta = await r.json(); break; } }catch(e){}
@@ -1935,6 +1954,7 @@
         }
       });
       shatAudioUrls = map;
+      try{ localStorage.setItem(MATN_AUDIO_CACHE, JSON.stringify(map)); }catch(e){}
       return map;
     })().catch(e => { shatAudioPromise = null; throw e; });
     return shatAudioPromise;
@@ -3268,6 +3288,8 @@
     }
     setEyebrow('PRESS PLAY', false);
     ensureNext();   // prefetch a first radio track so play is instant
+    // Warm the matn cache in the background so its first open is quick too.
+    setTimeout(() => { loadMatn().catch(() => {}); }, 1500);
   }
   init();
 
