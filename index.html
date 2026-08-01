@@ -1060,8 +1060,19 @@
   // The matn text and audio index never change, but fetching + parsing them
   // through the CORS relays is slow. Cache the parsed results so subsequent
   // opens are instant. Bump the version to invalidate if the parser changes.
-  const MATN_TEXT_CACHE = 'muqri.matn.text.v1';
-  const MATN_AUDIO_CACHE = 'muqri.matn.audio.v1';
+  const MATN_TEXT_CACHE = 'muqri.matn.text.v2';
+  const MATN_AUDIO_CACHE = 'muqri.matn.audio.v2';
+  // Only ever cache / trust a *complete* parse — a partial fetch through a flaky
+  // proxy must never be persisted, or ranges in the missing part would break.
+  function matnTextComplete(ay){
+    if(!ay) return false;
+    for(let n = 1; n <= SHAT_TOTAL; n++){ if(!ay[n]) return false; }
+    return true;
+  }
+  function matnAudioComplete(map){
+    if(!map) return false;
+    return SHAT_MAP.every(r => r[0] === 0 || map[r[0] - 1]);
+  }
   const SHAT_TOTAL = 1173;
   const SHAT_MAP = [
     [2,1,94,883],[3,95,99,54],[4,100,107,81],[5,108,115,80],[6,116,131,151],
@@ -1893,10 +1904,11 @@
   function loadShatText(){
     if(shatTextPromise) return shatTextPromise;
     shatTextPromise = (async () => {
-      // Cache-first: the parsed text is static, so reuse it if we have it.
+      // Cache-first: the parsed text is static, so reuse it — but only if the
+      // cached parse covers every bayt (a partial one is discarded and refetched).
       try{
         const cached = JSON.parse(localStorage.getItem(MATN_TEXT_CACHE) || 'null');
-        if(cached && cached.ay && Object.keys(cached.ay).length >= 1000){
+        if(cached && matnTextComplete(cached.ay)){
           shatAyat = cached.ay; shatTitles = cached.titles || {};
           return shatAyat;
         }
@@ -1926,7 +1938,7 @@
         }
       }
       shatAyat = ay; shatTitles = titles;
-      try{ localStorage.setItem(MATN_TEXT_CACHE, JSON.stringify({ ay, titles })); }catch(e){}
+      if(matnTextComplete(ay)){ try{ localStorage.setItem(MATN_TEXT_CACHE, JSON.stringify({ ay, titles })); }catch(e){} }
       return ay;
     })().catch(e => { shatTextPromise = null; throw e; });
     return shatTextPromise;
@@ -1936,10 +1948,11 @@
   function loadShatAudio(){
     if(shatAudioPromise) return shatAudioPromise;
     shatAudioPromise = (async () => {
-      // Cache-first: the archive item's file list is fixed.
+      // Cache-first: the archive item's file list is fixed — but only trust a
+      // map that resolves every chapter with audio.
       try{
         const cached = JSON.parse(localStorage.getItem(MATN_AUDIO_CACHE) || 'null');
-        if(cached && Object.keys(cached).length >= 70){ shatAudioUrls = cached; return cached; }
+        if(matnAudioComplete(cached)){ shatAudioUrls = cached; return cached; }
       }catch(e){}
       let meta = null;
       for(const wrap of CORS_PROXIES){
@@ -1954,7 +1967,7 @@
         }
       });
       shatAudioUrls = map;
-      try{ localStorage.setItem(MATN_AUDIO_CACHE, JSON.stringify(map)); }catch(e){}
+      if(matnAudioComplete(map)){ try{ localStorage.setItem(MATN_AUDIO_CACHE, JSON.stringify(map)); }catch(e){} }
       return map;
     })().catch(e => { shatAudioPromise = null; throw e; });
     return shatAudioPromise;
