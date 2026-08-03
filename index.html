@@ -1101,6 +1101,8 @@
   let matnState = null;      // { from, to, rows:[covered SHAT_MAP rows], idx }
   let matnToken = 0;
   let lastMatnSave = 0;
+  const SCROLL_DELAY = 1.0;   // s: let scrolling readers (matn, werd, tajwid) trail
+                              // the voice slightly so the first line lingers
 
   let mode = 'radio';        // 'radio' | 'friday' | 'review' | 'matn'
   let fridayMode = false;
@@ -2127,7 +2129,10 @@
     const audioBayt = cur.row[1] + els.audio.currentTime / cur.perBayt;
     cur.audioBayt = audioBayt;
     cur.curBayt = Math.min(cur.row[2], Math.max(cur.row[1], Math.floor(audioBayt + 0.001)));
-    const textBayt = Math.max(matnState.from, Math.min(matnState.to, audioBayt + matnOffset));
+    // Scroll from a slightly delayed clock so the first bayt stays on screen a
+    // moment longer and the text reads just behind the voice.
+    const scrollBayt = cur.row[1] + Math.max(0, els.audio.currentTime - SCROLL_DELAY) / cur.perBayt;
+    const textBayt = Math.max(matnState.from, Math.min(matnState.to, scrollBayt + matnOffset));
     matnShownLine = Math.floor(textBayt + 0.001);
     matnScrollToPos(textBayt);
     matnSetSlider(textBayt);
@@ -2390,7 +2395,8 @@
   }
   function unitScrollNow(){
     if(!cur || !cur.unit || unitDragging || !unitLines.length) return;
-    const pos = unitPosFromTime(els.audio.currentTime) + unitOffset;
+    // Trail the voice slightly so the first verse lingers instead of racing off.
+    const pos = unitPosFromTime(Math.max(0, els.audio.currentTime - SCROLL_DELAY)) + unitOffset;
     unitShown = Math.round(pos);
     unitScrollToIndex(pos);
     unitSetThumb(unitLines.length > 1 ? pos / (unitLines.length - 1) : 0);
@@ -2536,7 +2542,53 @@
     { title: "Setting the heart firm", src: "al-Tirmidhī",
       ar: "يَا مُقَلِّبَ الْقُلُوبِ ثَبِّتْ قَلْبِي عَلَى دِينِكَ." },
     { title: "Steadfast prayer & good end", src: "Abū Dāwūd",
-      ar: "رَبِّ اجْعَلْنِي مُقِيمَ الصَّلَاةِ وَمِنْ ذُرِّيَّتِي، رَبَّنَا وَتَقَبَّلْ دُعَاءِ. اللَّهُمَّ أَعِنِّي عَلَى غَمَرَاتِ الْمَوْتِ وَسَكَرَاتِ الْمَوْتِ." }
+      ar: "رَبِّ اجْعَلْنِي مُقِيمَ الصَّلَاةِ وَمِنْ ذُرِّيَّتِي، رَبَّنَا وَتَقَبَّلْ دُعَاءِ. اللَّهُمَّ أَعِنِّي عَلَى غَمَرَاتِ الْمَوْتِ وَسَكَرَاتِ الْمَوْتِ." },
+    { title: "Morning remembrance", src: "Muslim",
+      ar: "أَصْبَحْنَا وَأَصْبَحَ الْمُلْكُ لِلَّهِ، وَالْحَمْدُ لِلَّهِ، لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ. رَبِّ أَسْأَلُكَ خَيْرَ مَا فِي هَذَا الْيَوْمِ وَخَيْرَ مَا بَعْدَهُ، وَأَعُوذُ بِكَ مِنْ شَرِّ مَا فِي هَذَا الْيَوْمِ وَشَرِّ مَا بَعْدَهُ." },
+    { title: "Evening remembrance", src: "Muslim",
+      ar: "أَمْسَيْنَا وَأَمْسَى الْمُلْكُ لِلَّهِ، وَالْحَمْدُ لِلَّهِ، لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ. رَبِّ أَسْأَلُكَ خَيْرَ مَا فِي هَذِهِ اللَّيْلَةِ وَخَيْرَ مَا بَعْدَهَا، وَأَعُوذُ بِكَ مِنْ شَرِّ مَا فِي هَذِهِ اللَّيْلَةِ وَشَرِّ مَا بَعْدَهَا." },
+    { title: "By You we live and die", src: "al-Tirmidhī",
+      ar: "اللَّهُمَّ بِكَ أَصْبَحْنَا، وَبِكَ أَمْسَيْنَا، وَبِكَ نَحْيَا، وَبِكَ نَمُوتُ، وَإِلَيْكَ الْمَصِيرُ." },
+    { title: "Content with Allah as Lord", src: "Abū Dāwūd · al-Tirmidhī",
+      ar: "رَضِيتُ بِاللَّهِ رَبًّا، وَبِالْإِسْلَامِ دِينًا، وَبِمُحَمَّدٍ صَلَّى اللَّهُ عَلَيْهِ وَسَلَّمَ نَبِيًّا." },
+    { title: "Allah is sufficient for me", src: "Abū Dāwūd",
+      ar: "حَسْبِيَ اللَّهُ لَا إِلَهَ إِلَّا هُوَ، عَلَيْهِ تَوَكَّلْتُ، وَهُوَ رَبُّ الْعَرْشِ الْعَظِيمِ." },
+    { title: "In the name of Allah — nothing harms", src: "Abū Dāwūd · al-Tirmidhī",
+      ar: "بِسْمِ اللَّهِ الَّذِي لَا يَضُرُّ مَعَ اسْمِهِ شَيْءٌ فِي الْأَرْضِ وَلَا فِي السَّمَاءِ، وَهُوَ السَّمِيعُ الْعَلِيمُ." },
+    { title: "Pardon & well-being", src: "Abū Dāwūd · Ibn Mājah",
+      ar: "اللَّهُمَّ إِنِّي أَسْأَلُكَ الْعَفْوَ وَالْعَافِيَةَ فِي الدُّنْيَا وَالْآخِرَةِ. اللَّهُمَّ إِنِّي أَسْأَلُكَ الْعَفْوَ وَالْعَافِيَةَ فِي دِينِي وَدُنْيَايَ وَأَهْلِي وَمَالِي. اللَّهُمَّ اسْتُرْ عَوْرَاتِي، وَآمِنْ رَوْعَاتِي، اللَّهُمَّ احْفَظْنِي مِنْ بَيْنِ يَدَيَّ، وَمِنْ خَلْفِي، وَعَنْ يَمِينِي، وَعَنْ شِمَالِي، وَمِنْ فَوْقِي، وَأَعُوذُ بِعَظَمَتِكَ أَنْ أُغْتَالَ مِنْ تَحْتِي." },
+    { title: "Knower of the unseen", src: "Abū Dāwūd · al-Tirmidhī",
+      ar: "اللَّهُمَّ عَالِمَ الْغَيْبِ وَالشَّهَادَةِ، فَاطِرَ السَّمَاوَاتِ وَالْأَرْضِ، رَبَّ كُلِّ شَيْءٍ وَمَلِيكَهُ، أَشْهَدُ أَنْ لَا إِلَهَ إِلَّا أَنْتَ، أَعُوذُ بِكَ مِنْ شَرِّ نَفْسِي، وَمِنْ شَرِّ الشَّيْطَانِ وَشِرْكِهِ، وَأَنْ أَقْتَرِفَ عَلَى نَفْسِي سُوءًا أَوْ أَجُرَّهُ إِلَى مُسْلِمٍ." },
+    { title: "After ṣalāh — peace", src: "Muslim",
+      ar: "اللَّهُمَّ أَنْتَ السَّلَامُ، وَمِنْكَ السَّلَامُ، تَبَارَكْتَ يَا ذَا الْجَلَالِ وَالْإِكْرَامِ." },
+    { title: "After ṣalāh — none can withhold", src: "al-Bukhārī & Muslim",
+      ar: "لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ. اللَّهُمَّ لَا مَانِعَ لِمَا أَعْطَيْتَ، وَلَا مُعْطِيَ لِمَا مَنَعْتَ، وَلَا يَنْفَعُ ذَا الْجَدِّ مِنْكَ الْجَدُّ." },
+    { title: "Abū Bakr's supplication in ṣalāh", src: "al-Bukhārī & Muslim",
+      ar: "اللَّهُمَّ إِنِّي ظَلَمْتُ نَفْسِي ظُلْمًا كَثِيرًا، وَلَا يَغْفِرُ الذُّنُوبَ إِلَّا أَنْتَ، فَاغْفِرْ لِي مَغْفِرَةً مِنْ عِنْدِكَ، وَارْحَمْنِي، إِنَّكَ أَنْتَ الْغَفُورُ الرَّحِيمُ." },
+    { title: "Refuge from four trials", src: "al-Bukhārī & Muslim",
+      ar: "اللَّهُمَّ إِنِّي أَعُوذُ بِكَ مِنْ عَذَابِ الْقَبْرِ، وَمِنْ عَذَابِ جَهَنَّمَ، وَمِنْ فِتْنَةِ الْمَحْيَا وَالْمَمَاتِ، وَمِنْ شَرِّ فِتْنَةِ الْمَسِيحِ الدَّجَّالِ." },
+    { title: "Refuge from disbelief & poverty", src: "Abū Dāwūd · al-Nasāʾī",
+      ar: "اللَّهُمَّ إِنِّي أَعُوذُ بِكَ مِنَ الْكُفْرِ وَالْفَقْرِ، وَأَعُوذُ بِكَ مِنْ عَذَابِ الْقَبْرِ، لَا إِلَهَ إِلَّا أَنْتَ." },
+    { title: "Relief from grief & worry", src: "Aḥmad",
+      ar: "اللَّهُمَّ إِنِّي عَبْدُكَ، ابْنُ عَبْدِكَ، ابْنُ أَمَتِكَ، نَاصِيَتِي بِيَدِكَ، مَاضٍ فِيَّ حُكْمُكَ، عَدْلٌ فِيَّ قَضَاؤُكَ، أَسْأَلُكَ بِكُلِّ اسْمٍ هُوَ لَكَ سَمَّيْتَ بِهِ نَفْسَكَ، أَوْ أَنْزَلْتَهُ فِي كِتَابِكَ، أَوْ عَلَّمْتَهُ أَحَدًا مِنْ خَلْقِكَ، أَوِ اسْتَأْثَرْتَ بِهِ فِي عِلْمِ الْغَيْبِ عِنْدَكَ، أَنْ تَجْعَلَ الْقُرْآنَ رَبِيعَ قَلْبِي، وَنُورَ صَدْرِي، وَجَلَاءَ حُزْنِي، وَذَهَابَ هَمِّي." },
+    { title: "On lying down to sleep", src: "al-Bukhārī",
+      ar: "بِاسْمِكَ اللَّهُمَّ أَمُوتُ وَأَحْيَا." },
+    { title: "On waking", src: "al-Bukhārī",
+      ar: "الْحَمْدُ لِلَّهِ الَّذِي أَحْيَانَا بَعْدَ مَا أَمَاتَنَا وَإِلَيْهِ النُّشُورُ." },
+    { title: "Before sleep — protection", src: "Abū Dāwūd · al-Tirmidhī",
+      ar: "اللَّهُمَّ قِنِي عَذَابَكَ يَوْمَ تَبْعَثُ عِبَادَكَ." },
+    { title: "On leaving the home", src: "Abū Dāwūd · al-Tirmidhī",
+      ar: "بِسْمِ اللَّهِ تَوَكَّلْتُ عَلَى اللَّهِ، وَلَا حَوْلَ وَلَا قُوَّةَ إِلَّا بِاللَّهِ." },
+    { title: "Turning to Allah in repentance", src: "Abū Dāwūd · al-Tirmidhī",
+      ar: "رَبِّ اغْفِرْ لِي وَتُبْ عَلَيَّ، إِنَّكَ أَنْتَ التَّوَّابُ الْغَفُورُ." },
+    { title: "Gratitude for every blessing", src: "Abū Dāwūd",
+      ar: "اللَّهُمَّ مَا أَصْبَحَ بِي مِنْ نِعْمَةٍ أَوْ بِأَحَدٍ مِنْ خَلْقِكَ، فَمِنْكَ وَحْدَكَ لَا شَرِيكَ لَكَ، فَلَكَ الْحَمْدُ وَلَكَ الشُّكْرُ." },
+    { title: "The beloved words of remembrance", src: "al-Bukhārī & Muslim",
+      ar: "سُبْحَانَ اللَّهِ وَبِحَمْدِهِ، سُبْحَانَ اللَّهِ الْعَظِيمِ." },
+    { title: "Glorification beyond count", src: "Muslim",
+      ar: "سُبْحَانَ اللَّهِ وَبِحَمْدِهِ عَدَدَ خَلْقِهِ، وَرِضَا نَفْسِهِ، وَزِنَةَ عَرْشِهِ، وَمِدَادَ كَلِمَاتِهِ." },
+    { title: "On entering the market", src: "al-Tirmidhī",
+      ar: "لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ، يُحْيِي وَيُمِيتُ، وَهُوَ حَيٌّ لَا يَمُوتُ، بِيَدِهِ الْخَيْرُ، وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ." }
   ];
   const DUA_KEY = 'muqri.dua.v2';   // v2: text-only Sunnah supplications
   let duaState = null;   // { idx }
