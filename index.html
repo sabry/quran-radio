@@ -249,6 +249,7 @@
 
   .review-queue{ display:none; margin-top:20px; }
   body.is-review #reviewQueue{ display:block; }
+  body.is-matn #matnQueue{ display:block; }
   .matn-half{
     display:block;
     line-height:1.9;
@@ -1941,6 +1942,7 @@
   // kept only for the bab titles shown while reciting.
   const SHAT_AUDIO_URL = 'https://files.a-alqasim.com/audio/Mutoon/MahmudHaleem/0814AsShaatibiyyah_MahmudHaleem.mp3';
   const SHAT_ROW = [1, 1, SHAT_TOTAL, 0];   // [_, firstBayt, lastBayt, _]
+  const MATN_INTRO = 50;   // s of spoken intro before bayt 1; the even split runs over the rest
   function loadShatAudio(){
     if(!shatAudioPromise){
       shatAudioUrls = { ready: true };   // single deterministic URL; nothing to fetch
@@ -2040,17 +2042,18 @@
     if(!cur || !cur.matn) return;
     const d = els.audio.duration;
     if(!isFinite(d) || d <= 0) return;
-    cur.perBayt = d / cur.count;
+    // Bayt row[1] begins at t0 (after the spoken intro); split the rest evenly.
+    cur.t0 = MATN_INTRO;
+    cur.perBayt = Math.max(0.1, (d - cur.t0) / cur.count);
+    const bt = b => cur.t0 + (b - cur.row[1]) * cur.perBayt;   // start time of bayt b
     // Even division underestimates the last bayt's end slightly, which was
-    // clipping the final word. Give it a tail so it finishes (capped at the
-    // file's end). Full-chapter ends already sit at the duration, so this is a
-    // no-op there.
+    // clipping the final word. Give it a tail so it finishes (capped at the end).
     const tail = Math.max(2.5, cur.perBayt * 0.5);
-    cur.playEnd = Math.min(d, (cur.rowTo - cur.row[1] + 1) * cur.perBayt + tail);
-    if(cur.seekLast) cur.playStart = (cur.rowTo - cur.row[1]) * cur.perBayt;
-    else if(cur.seekBayt) cur.playStart = (Math.min(cur.rowTo, Math.max(cur.rowFrom, cur.seekBayt)) - cur.row[1]) * cur.perBayt;
+    cur.playEnd = Math.min(d, bt(cur.rowTo + 1) + tail);
+    if(cur.seekLast) cur.playStart = bt(cur.rowTo);
+    else if(cur.seekBayt) cur.playStart = bt(Math.min(cur.rowTo, Math.max(cur.rowFrom, cur.seekBayt)));
     else if(cur.seekTime != null) cur.playStart = cur.seekTime;
-    else cur.playStart = (cur.rowFrom - cur.row[1]) * cur.perBayt;
+    else cur.playStart = bt(cur.rowFrom);
     if(!cur.trimApplied){
       cur.trimApplied = true;
       if(cur.playStart > 0.3 && Math.abs(els.audio.currentTime - cur.playStart) > 1) els.audio.currentTime = cur.playStart;
@@ -2062,7 +2065,7 @@
 
   function baytAtTime(t){
     if(!cur || !cur.matn || !cur.perBayt) return cur ? cur.rowFrom : 1;
-    const b = cur.row[1] + Math.floor(t / cur.perBayt);
+    const b = cur.row[1] + Math.floor((t - (cur.t0 || 0)) / cur.perBayt);
     return Math.min(cur.row[2], Math.max(cur.row[1], b));
   }
 
@@ -2107,14 +2110,15 @@
   // slider/tap set. Following the audio clock means rewind scrolls back too.
   function matnScrollNow(){
     if(!cur || !cur.matn || !cur.perBayt || !matnState || matnDragging) return;
-    const audioBayt = cur.row[1] + els.audio.currentTime / cur.perBayt;
+    const t0 = cur.t0 || 0;
+    const audioBayt = cur.row[1] + (els.audio.currentTime - t0) / cur.perBayt;
     cur.audioBayt = audioBayt;
     cur.curBayt = Math.min(cur.row[2], Math.max(cur.row[1], Math.floor(audioBayt + 0.001)));
     // Show the bab that the current bayt falls in.
     if(cur.curBayt !== cur.shownBab){ cur.shownBab = cur.curBayt; els.surahName.textContent = matnBabTitle(cur.curBayt); }
     // Scroll from a slightly delayed clock so the first bayt stays on screen a
     // moment longer and the text reads just behind the voice.
-    const scrollBayt = cur.row[1] + Math.max(0, els.audio.currentTime - SCROLL_DELAY) / cur.perBayt;
+    const scrollBayt = cur.row[1] + Math.max(0, els.audio.currentTime - t0 - SCROLL_DELAY) / cur.perBayt;
     const textBayt = Math.max(matnState.from, Math.min(matnState.to, scrollBayt + matnOffset));
     matnShownLine = Math.floor(textBayt + 0.001);
     matnScrollToPos(textBayt);
@@ -2168,7 +2172,7 @@
   function nextBayt(){
     if(!cur || !cur.matn || !cur.perBayt) return;
     const d = els.audio.duration;
-    const target = (cur.curBayt - cur.row[1] + 1) * cur.perBayt + 0.05;
+    const target = (cur.t0 || 0) + (cur.curBayt - cur.row[1] + 1) * cur.perBayt + 0.05;
     if(isFinite(d) && target >= d - 0.1) return;   // already at the poem's end
     els.audio.currentTime = target;
     matnCheckRoam();
@@ -2176,9 +2180,9 @@
   }
   function prevBayt(){
     if(!cur || !cur.matn || !cur.perBayt) return;
-    const startOfCur = (cur.curBayt - cur.row[1]) * cur.perBayt;
+    const startOfCur = (cur.t0 || 0) + (cur.curBayt - cur.row[1]) * cur.perBayt;
     if(els.audio.currentTime > startOfCur + 2.5){ els.audio.currentTime = startOfCur; }
-    else { els.audio.currentTime = Math.max(0, startOfCur - cur.perBayt + 0.05); }
+    else { els.audio.currentTime = Math.max(cur.t0 || 0, startOfCur - cur.perBayt + 0.05); }
     matnCheckRoam();
     if(els.audio.paused) els.audio.play().catch(() => {});
   }
@@ -2259,7 +2263,7 @@
     if(!cur || !cur.matn || !cur.perBayt || !matnState) return;
     n = Math.min(matnState.to, Math.max(matnState.from, n));
     // One file — just seek, don't reload. (Global bayt: row start is bayt 1.)
-    els.audio.currentTime = (n - cur.row[1]) * cur.perBayt;
+    els.audio.currentTime = (cur.t0 || 0) + (n - cur.row[1]) * cur.perBayt;
     matnOffset = 0;
     matnCheckRoam();
     if(els.audio.paused) els.audio.play().catch(() => {});
