@@ -1982,8 +1982,15 @@
   }
 
   function matnCoveredRows(from, to){
-    // rows that overlap [from,to] and have audio
-    return SHAT_MAP.filter(r => r[0] > 0 && r[1] <= to && r[2] >= from);
+    // rows that overlap [from,to] and have a resolvable audio file. (The archive
+    // item can lose files, so a chapter mapped in SHAT_MAP may have no audio.)
+    return SHAT_MAP.filter(r => r[0] > 0 && r[1] <= to && r[2] >= from && shatAudioUrl(r[0]));
+  }
+  // Highest bayt that currently has audio, computed live from what resolved.
+  function matnAudioCeiling(){
+    let hi = 0;
+    for(const r of SHAT_MAP){ if(r[0] > 0 && shatAudioUrl(r[0]) && r[2] > hi) hi = r[2]; }
+    return hi;
   }
 
   function startMatn(from, to, resume){
@@ -1991,7 +1998,13 @@
     to = Math.min(SHAT_TOTAL, Math.max(from, Math.round(to) || from));
     els.matnFrom.value = from; els.matnTo.value = to;
     const rows = matnCoveredRows(from, to);
-    if(!rows.length){ setStatus('No recitation for that range.'); return; }
+    if(!rows.length){
+      const hi = matnAudioCeiling();
+      setStatus(hi && hi < SHAT_TOTAL
+        ? ('The audio source currently covers only abyāt 1–' + hi + '. Choose a range within that.')
+        : 'No recitation for that range.');
+      return;
+    }
     matnState = { from, to, rows, idx: 0 };
     let idx = 0, seek = null;
     if(resume && resume.from === from && resume.to === to){
@@ -2634,6 +2647,7 @@
     if(mode === 'matn' && cur && cur.matn) saveMatnProgress(true);
     if((mode === 'werd' || mode === 'tajweed') && cur && cur.unit) saveUnitProgress(true);
     mode = name;
+    try{ localStorage.setItem('muqri.mode', name); }catch(e){}   // remember the tab across refreshes
     fridayMode = name === 'friday';
     reviewMode = name === 'review';
     matnMode = name === 'matn';
@@ -3355,6 +3369,12 @@
     ensureNext();   // prefetch a first radio track so play is instant
     // Warm the matn cache in the background so its first open is quick too.
     setTimeout(() => { loadMatn().catch(() => {}); }, 1500);
+    // Reopen the tab the listener was last on.
+    let last = null;
+    try{ last = localStorage.getItem('muqri.mode'); }catch(e){}
+    if(last && last !== 'radio' && ['friday','review','matn','werd','tajweed','dua'].indexOf(last) !== -1){
+      setMode(last);
+    }
   }
   init();
 
