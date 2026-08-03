@@ -906,7 +906,7 @@
     <p>The riwayah is not drawn evenly. Hafs 'an 'Asim makes up about four fifths of the library but is deliberately held to around an eighth of the airtime, and the rest is shared among the other readings in a way that favours the rarer ones without letting the handful with a single recording keep returning. In practice the nine rarest qira'at take about a third of the airtime while holding four percent of the recordings.</p>
     <p>Friday mode plays Surat al-Kahf exclusively, following the tradition of reciting it on Fridays, and rotates through the different readings of it rather than through different surahs. The same weighting applies, except for two readings that have no recording of al-Kahf on the library and so sit out this mode. In Friday mode the surah is played whole rather than split into parts.</p>
     <p>Review mode is for revising a stretch of the Qur'an in order. Choose a reciter and enter a starting and ending juz' (both included), and it recites that exact span &mdash; beginning and ending partway through a surah where the juz' boundaries fall &mdash; with the verses shown as they are recited. The reciter menu lists every Hafs reciter on the library who has both a complete recording and published verse timings; since different reciters' timing marks are placed with differing precision, you can settle on whichever one tracks the text best for you. The passage is divided at quarter-hizb (rub' al-hizb) boundaries, listed as a queue you can tap to jump between; the previous and next buttons step one quarter-hizb at a time, while rewind still goes back ten seconds. Your place is saved continuously, so you can stop and later resume exactly where you left off.</p>
-    <p>Matn mode is for memorising the Shāṭibiyyah (Ḥirz al-Amānī), the 1173-line poem on the seven readings. Enter a range of abyāt and it chants them in Muhammad al-Munshid's melodic recitation, with the bayt shown as it is recited and a tappable list of the range. Because the recitation is split by chapter rather than by line, the highlight is approximate — each chapter's audio is divided evenly across its abyāt, which tracks reasonably given the even metrical pace — and the previous and next buttons step one bayt at a time to keep it locked. Your place is saved so you can resume. The text is drawn from surahquran.net and the audio streams from the Internet Archive.</p>
+    <p>Matn mode is for memorising the Shāṭibiyyah (Ḥirz al-Amānī), the 1173-line poem on the seven readings. Enter a range of abyāt and it chants them in ʿAbd al-Rashīd ʿAlī Ṣūfī's melodic recitation, with the bayt shown as it is recited and a tappable list of the range. Because the recitation is split by chapter rather than by line, the highlight is approximate — each chapter's audio is divided evenly across its abyāt, which tracks reasonably given the even metrical pace — and the previous and next buttons step one bayt at a time to keep it locked. Your place is saved so you can resume. The text is drawn from surahquran.net and the audio streams from islamweb.net.</p>
     <p>When the chosen recitation has published ayah timings, the verse being recited appears beneath the surah name, in the mushaf text of that specific riwayah &mdash; Warsh audio is shown against the Warsh mushaf, Qalun against Qalun, and so on, each in the King Fahd Complex's Uthmanic font for that narration. This matters because the readings do not all divide the text the same way: al-Baqarah is 285 verses in Warsh and Qalun but 286 in Hafs and Shu'bah. Recitations without published timings, or in riwayat with no published digital mushaf, simply play without text.</p>
     <p>Long surahs (over ~25 minutes) are automatically split into 15&ndash;20 minute parts, and each part joins the random rotation on its own, so no single track keeps the stream tied up for hours. Where ayah timings exist, these parts begin and end on verse boundaries rather than mid-verse. If the connection drops mid-recitation, the player reconnects and resumes from where it left off.</p>
     <p>Tip: open this page in your phone's browser and use "Add to Home Screen" so it behaves like an app and keeps playing with your screen locked.</p>
@@ -1042,36 +1042,26 @@
   // --- Shatibiyya (matn memorisation) -------------------------------------
   // Text (1173 abyat) is fetched at runtime from surahquran.net and parsed by
   // bayt number, so the vowelled text stays byte-exact rather than transcribed.
-  // Audio is Muhammad al-Munshid's chanted (melodic) recitation on the Internet
-  // Archive, split by chapter (bab). SHAT_MAP aligns each chapter to a bayt
-  // range and a chapter number: [chapterNumber, firstBayt, lastBayt, durSec].
-  // The number was built for Suwayd's set; al-Munshid's file numbers run one
-  // lower and have descriptive names, so they're resolved from the item
-  // metadata at runtime via shatAudioUrl(). chapter 0 = no recording (khatimah).
-  // A melodic reciter's pace is even per bayt, so dividing a chapter's duration
-  // across its abyat follows along reasonably; prev/next step one bayt to lock.
-  const MATN_META_URL = 'https://archive.org/metadata/ramy_30';
-  const MATN_BASE = 'https://archive.org/download/ramy_30/';
-  const MATN_RECITER_AR = 'محمد المنشد';
+  // Audio is ʿAbd al-Rashīd ʿAlī Ṣūfī's melodic recitation on islamweb, split by
+  // chapter (bab). SHAT_MAP aligns each chapter to a bayt range and a chapter
+  // number: [chapterNumber, firstBayt, lastBayt, durSec]. islamweb's chapter
+  // number equals SHAT_MAP's audioNum and its download id is a fixed offset, so
+  // shatAudioUrl() computes the URL directly — no metadata fetch. chapter 0 = no
+  // recording (khatimah). durSec is unused for pacing (perBayt comes from the
+  // actual loaded duration), so a different reciter's timing still tracks.
+  const MATN_RECITER_AR = 'عبد الرشيد صوفي';
   const SHAT_TEXT_URL = 'https://surahquran.com/Tajweed/alshatibieah.html';
   let shatAudioUrls = null;    // { fileNumber: url }
   let shatAudioPromise = null;
   const SHAT_KEY = 'muqri.matn.v1';
-  // The matn text and audio index never change, but fetching + parsing them
-  // through the CORS relays is slow. Cache the parsed results so subsequent
-  // opens are instant. Bump the version to invalidate if the parser changes.
+  // The matn text is fetched + parsed once through the CORS relays (slow), then
+  // cached so later opens are instant. Only a *complete* parse is cached — a
+  // partial fetch must never persist, or ranges in the missing part would break.
   const MATN_TEXT_CACHE = 'muqri.matn.text.v2';
-  const MATN_AUDIO_CACHE = 'muqri.matn.audio.v2';
-  // Only ever cache / trust a *complete* parse — a partial fetch through a flaky
-  // proxy must never be persisted, or ranges in the missing part would break.
   function matnTextComplete(ay){
     if(!ay) return false;
     for(let n = 1; n <= SHAT_TOTAL; n++){ if(!ay[n]) return false; }
     return true;
-  }
-  function matnAudioComplete(map){
-    if(!map) return false;
-    return SHAT_MAP.every(r => r[0] === 0 || map[r[0] - 1]);
   }
   const SHAT_TOTAL = 1173;
   const SHAT_MAP = [
@@ -1946,36 +1936,21 @@
     return shatTextPromise;
   }
 
-  // Resolve al-Munshid's descriptive filenames -> URLs, keyed by file number.
+  // Audio: ʿAbd al-Rashīd ʿAlī Ṣūfī's Shāṭibiyyah on islamweb, split into the
+  // same 78 chapters as the app's map. The chapter number equals SHAT_MAP's
+  // audioNum, and the download id is a fixed offset from it — so URLs are
+  // deterministic and need no metadata fetch (which is what kept breaking).
+  const MATN_AUDIO_BASE = 'https://audio.islamweb.net/audio/downloadmp3.php?audioid=';
+  const MATN_AUDIO_ID0 = 157457;   // audioid = ID0 + audioNum (islamweb chapter #)
   function loadShatAudio(){
-    if(shatAudioPromise) return shatAudioPromise;
-    shatAudioPromise = (async () => {
-      // Cache-first: the archive item's file list is fixed — but only trust a
-      // map that resolves every chapter with audio.
-      try{
-        const cached = JSON.parse(localStorage.getItem(MATN_AUDIO_CACHE) || 'null');
-        if(matnAudioComplete(cached)){ shatAudioUrls = cached; return cached; }
-      }catch(e){}
-      let meta = null;
-      for(const wrap of CORS_PROXIES){
-        try{ const r = await fetch(wrap(MATN_META_URL)); if(r.ok){ meta = await r.json(); break; } }catch(e){}
-      }
-      if(!meta || !meta.files) throw new Error('audio index unavailable');
-      const map = {};
-      meta.files.forEach(f => {
-        if(/\.mp3$/i.test(f.name)){
-          const n = +((f.name.match(/^(\d+)/) || [])[1]);
-          if(n) map[n] = MATN_BASE + encodeURIComponent(f.name);
-        }
-      });
-      shatAudioUrls = map;
-      if(matnAudioComplete(map)){ try{ localStorage.setItem(MATN_AUDIO_CACHE, JSON.stringify(map)); }catch(e){} }
-      return map;
-    })().catch(e => { shatAudioPromise = null; throw e; });
+    if(!shatAudioPromise){
+      shatAudioUrls = { ready: true };   // deterministic URLs; nothing to fetch
+      shatAudioPromise = Promise.resolve(shatAudioUrls);
+    }
     return shatAudioPromise;
   }
   function loadMatn(){ return Promise.all([loadShatText(), loadShatAudio()]); }
-  function shatAudioUrl(suwaydIdx){ return shatAudioUrls ? shatAudioUrls[suwaydIdx - 1] : null; }
+  function shatAudioUrl(audioNum){ return audioNum > 0 ? (MATN_AUDIO_BASE + (MATN_AUDIO_ID0 + audioNum)) : null; }
 
   function shatRowTitle(row){
     return (shatTitles && shatTitles[row[1]]) || ('الأبيات ' + row[1] + '–' + row[2]);
@@ -2256,7 +2231,7 @@
   function updateMatnMedia(){
     if(!('mediaSession' in navigator) || !cur || !cur.matn) return;
     navigator.mediaSession.metadata = new MediaMetadata({
-      title: shatRowTitle(cur.row), artist: 'محمد المنشد', album: 'الشاطبية'
+      title: shatRowTitle(cur.row), artist: 'عبد الرشيد صوفي', album: 'الشاطبية'
     });
     navigator.mediaSession.setActionHandler('play', () => els.audio.play());
     navigator.mediaSession.setActionHandler('pause', () => els.audio.pause());
@@ -2701,7 +2676,7 @@
       matnState = null;
       els.surahName.textContent = '—';
       els.surahMeta.innerHTML = '&nbsp;';
-      els.reciterName.textContent = 'محمد المنشد';
+      els.reciterName.textContent = 'عبد الرشيد صوفي';
       els.riwayahName.textContent = "Ash-Shāṭibiyyah  ·  الشاطبية";
       setEyebrow('LOADING MATN…', true);
       matnRenderQueue();
