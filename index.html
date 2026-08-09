@@ -967,6 +967,8 @@
   // Reads kept out of the menu: al-Hudhaifi (74) has unreliable ayah marks;
   // al-'Afasi (123) and al-Sudais (54) excluded by request.
   const REVIEW_EXCLUDE = [74, 123, 54];
+  // Also dropped from Werd/Tajwid for bad timing: Mohamed Sayed / Warsh (134).
+  const UNIT_EXCLUDE = REVIEW_EXCLUDE.concat([134]);
   const REVIEW_DEFAULT_READ = 30;   // Saad al-Ghamdi
   const REVIEW_FALLBACK = { id: 30, nameAr: 'سعد الغامدي', server: 'https://server7.mp3quran.net/s_gmd/' };
   let reviewReciters = [];          // [{ id, nameAr, server }], built from the reads list
@@ -1369,7 +1371,7 @@
           unitReciters = {};
           (reads || []).forEach(r => {
             if(r.soar_count !== 114) return;
-            if(REVIEW_EXCLUDE.indexOf(r.id) !== -1) return;   // drop reads with unreliable marks
+            if(UNIT_EXCLUDE.indexOf(r.id) !== -1) return;   // drop reads with unreliable marks
             const rid = readRiwayahId(r.rewaya);
             if(UNIT_RIWAYAT.indexOf(rid) === -1) return;
             (unitReciters[rid] || (unitReciters[rid] = [])).push({
