@@ -668,6 +668,16 @@
     padding:6px 2px;
   }
   .about p{ margin:10px 2px 4px; }
+  .updated{
+    width:100%;
+    max-width:440px;
+    margin:14px 0 8px;
+    text-align:center;
+    font-size:11px;
+    letter-spacing:0.4px;
+    color:var(--muted);
+    opacity:0.7;
+  }
 
   .overlay{
     position:fixed;
@@ -911,6 +921,8 @@
     <p>Long surahs (over ~25 minutes) are automatically split into 15&ndash;20 minute parts, and each part joins the random rotation on its own, so no single track keeps the stream tied up for hours. Where ayah timings exist, these parts begin and end on verse boundaries rather than mid-verse. If the connection drops mid-recitation, the player reconnects and resumes from where it left off.</p>
     <p>Tip: open this page in your phone's browser and use "Add to Home Screen" so it behaves like an app and keeps playing with your screen locked.</p>
   </details>
+
+  <div class="updated" id="updated"></div>
 
   <audio id="audio" preload="auto"></audio>
 
@@ -3425,6 +3437,16 @@
 
   // Load metadata up front (no audio yet) so the app opens straight to the
   // tabs, ready to play the moment the listener presses play or picks a range.
+  // Show when the page was last deployed, from the server's Last-Modified header
+  // (exposed as document.lastModified) — no manual date to maintain.
+  (function showUpdated(){
+    const el = document.getElementById('updated');
+    if(!el) return;
+    const d = new Date(document.lastModified);
+    if(isNaN(d.getTime())) return;
+    el.textContent = 'Last updated · ' + d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  })();
+
   async function init(){
     loadTimingReads();
     try{
