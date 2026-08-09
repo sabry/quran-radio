@@ -1369,6 +1369,7 @@
           unitReciters = {};
           (reads || []).forEach(r => {
             if(r.soar_count !== 114) return;
+            if(REVIEW_EXCLUDE.indexOf(r.id) !== -1) return;   // drop reads with unreliable marks
             const rid = readRiwayahId(r.rewaya);
             if(UNIT_RIWAYAT.indexOf(rid) === -1) return;
             (unitReciters[rid] || (unitReciters[rid] = [])).push({
@@ -1414,6 +1415,15 @@
     ]);
     if(!Array.isArray(timings) || !timings.length) return null;
 
+    // Raw timing by ayah number, independent of text. This drives the audio
+    // seek (juz'/rub' positioning) so it works for every riwayah even when the
+    // text pairing is imperfect — the ayah numbering across riwayat differs by
+    // only a verse or two, which is a good enough approximation of the position.
+    const timing = timings
+      .filter(a => a.ayah > 0 && a.start_time != null)
+      .map(a => ({ n: a.ayah, t0: a.start_time / 1000, t1: a.end_time / 1000 }))
+      .sort((a, b) => a.t0 - b.t0);
+
     const ayat = timings
       // ayah 0 is the reciter's opening (isti'adhah / basmalah), not a verse
       .filter(a => a.ayah > 0 && a.start_time != null)
@@ -1443,7 +1453,7 @@
       }
     }
 
-    return ayat.length ? { ayat, font: narration.font } : null;
+    return ayat.length ? { ayat, timing, font: narration.font } : null;
   }
 
   async function loadMeta(){
@@ -2273,7 +2283,12 @@
   // Any riwayah with both timing and King Fahd text is selectable. Text +
   // timing come from buildAyat(); the reader scrolls by the real ayah timings,
   // so it is exact (unlike the matn's even division).
-  const UNIT_RIWAYAT = [1, 2, 5, 15, 4, 7, 13];   // riwayat with timing + text
+  // Werd/Tajwid narrations. The juz'/rub' boundaries use Hafs verse numbering;
+  // other riwayat number verses slightly differently, so for them the audio
+  // seek lands within a verse or two of the boundary (a good approximation) and
+  // the text sync is best-effort. The audio position is driven by the raw
+  // timing, so choosing a narration always gets you close to the right place.
+  const UNIT_RIWAYAT = [1, 2, 5, 15, 4, 7, 13];
   const RIWAYAH_LABEL = {
     1: "حفص عن عاصم", 2: "ورش عن نافع", 5: "قالون عن نافع",
     15: "شعبة عن عاصم", 4: "البزّي عن ابن كثير", 7: "السوسي عن أبي عمرو",
@@ -2422,16 +2437,27 @@
     buildAyat(track).then(res => {
       if(!cur || cur.token !== token) return;
       if(res){
-        cur.ayat = res.ayat; cur.font = res.font;
-        cur.readerAyat = res.ayat.filter(a => a.n >= cur.startAyah && a.n <= cur.endAyah);
-        const sA = res.ayat.find(a => a.n === cur.startAyah); if(sA) cur.startT0 = sA.t0;
-        const eA = res.ayat.find(a => a.n === (item.endAyah || cur.endAyah)); if(eA) cur.endT1 = eA.t1;
+        cur.ayat = res.ayat || []; cur.font = res.font || 'hafs18';
+        cur.readerAyat = cur.ayat.filter(a => a.n >= cur.startAyah && a.n <= cur.endAyah);
+        // Audio position comes from the raw timing, so it works for every
+        // riwayah. Nearest-ayah fallback keeps it a good approximation even when
+        // the exact boundary verse isn't individually marked.
+        const tim = res.timing || [];
+        const sA = nearestTiming(tim, cur.startAyah); if(sA) cur.startT0 = sA.t0;
+        const eA = nearestTiming(tim, item.endAyah || cur.endAyah); if(eA) cur.endT1 = eA.t1;
         unitBuildReader();
       }
       cur.timingsReady = true;   // start/end times known → applyUnitTrim may seek
       applyUnitTrim();
       startUnitTick();
     }).catch(() => { if(cur && cur.token === token){ cur.timingsReady = true; applyUnitTrim(); } });
+  }
+  // The timing entry whose ayah number is closest to n (for cross-riwayah seeks).
+  function nearestTiming(arr, n){
+    if(!arr || !arr.length) return null;
+    let best = null, bd = Infinity;
+    for(const a of arr){ const d = Math.abs(a.n - n); if(d < bd){ bd = d; best = a; } }
+    return best;
   }
 
   function applyUnitTrim(){
