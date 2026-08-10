@@ -245,7 +245,8 @@
   body.is-dua .divider,
   body.is-dua .reciter,
   body.is-dua .riwayah-pill,
-  body.is-dua #rewindBtn{ display:none; }
+  body.is-dua #rewindBtn,
+  body.is-dua #forwardBtn{ display:none; }
 
   .review-queue{ display:none; margin-top:20px; }
   body.is-review #reviewQueue{ display:block; }
@@ -886,6 +887,9 @@
         <button class="icon-btn play-toggle" id="playBtn" aria-label="Play">
           <svg id="playIcon" width="22" height="22" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
         </button>
+        <button class="icon-btn skip-btn" id="forwardBtn" aria-label="Forward 10 seconds">
+          <svg width="22" height="22" viewBox="0 0 24 24"><g transform="scale(-1,1) translate(-24,0)"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" fill="currentColor"/></g><text x="12" y="16.5" text-anchor="middle" font-size="7" font-family="sans-serif" fill="currentColor">10</text></svg>
+        </button>
         <button class="icon-btn skip-btn" id="skipBtn" aria-label="Skip to a new random reciter and qira'ah">
           <svg width="22" height="22" viewBox="0 0 24 24"><path d="M6 5l10 7-10 7V5zM18 5v14h2V5h-2z" fill="currentColor"/></svg>
         </button>
@@ -1227,6 +1231,7 @@
     playIcon: document.getElementById('playIcon'),
     skipBtn: document.getElementById('skipBtn'),
     rewindBtn: document.getElementById('rewindBtn'),
+    forwardBtn: document.getElementById('forwardBtn'),
     barFill: document.getElementById('barFill'),
     timeElapsed: document.getElementById('timeElapsed'),
     timeTotal: document.getElementById('timeTotal'),
@@ -1378,21 +1383,8 @@
               server: r.folder_url.endsWith('/') ? r.folder_url : r.folder_url + '/'
             }))
             .sort((a, b) => a.nameAr.localeCompare(b.nameAr, 'ar'));
-          // Werd / Tajwid reciter menu: every complete mushaf with timings whose
-          // riwayah has published King Fahd text, grouped by riwayah id.
-          unitReciters = {};
-          (reads || []).forEach(r => {
-            if(r.soar_count !== 114) return;
-            if(UNIT_EXCLUDE.indexOf(r.id) !== -1) return;   // drop reads with unreliable marks
-            const rid = readRiwayahId(r.rewaya);
-            if(UNIT_RIWAYAT.indexOf(rid) === -1) return;
-            (unitReciters[rid] || (unitReciters[rid] = [])).push({
-              id: r.id, readId: r.id, nameAr: r.name,
-              server: r.folder_url.endsWith('/') ? r.folder_url : r.folder_url + '/'
-            });
-          });
-          Object.keys(unitReciters).forEach(k =>
-            unitReciters[k].sort((a, b) => a.nameAr.localeCompare(b.nameAr, 'ar')));
+          // Werd/Tajwid reciters are loaded per-riwayah on demand (unitReaders),
+          // covering every reciter — with or without timing.
         })
         .catch(() => {}); // no timings this session; player behaves as before
     }
@@ -1749,11 +1741,20 @@
 
   function rewind(){
     if(duaMode) return;   // du'a is text-only, nothing to rewind
-    // Matn rewinds freely to the file start (before the chosen range); review
-    // and unit modes floor at the unit's start.
-    const floor = cur ? (cur.matn ? 0 : ((cur.review || cur.unit) ? (cur.playStart || 0) : (cur.chunked ? cur.chunkStart : 0))) : 0;
+    // Matn and Werd/Tajwid rewind freely past their boundaries; review floors at
+    // the unit start.
+    const floor = cur ? ((cur.matn || cur.unit) ? 0 : (cur.review ? (cur.playStart || 0) : (cur.chunked ? cur.chunkStart : 0))) : 0;
     els.audio.currentTime = Math.max(floor, els.audio.currentTime - REWIND_SECONDS);
     if(cur && cur.matn) matnCheckRoam();
+    if(cur && cur.unit) unitCheckRoam();
+  }
+  function forward(){
+    if(duaMode) return;   // du'a is text-only
+    const d = els.audio.duration;
+    if(!isFinite(d) || d <= 0) return;
+    els.audio.currentTime = Math.min(d - 0.2, els.audio.currentTime + REWIND_SECONDS);
+    if(cur && cur.matn) matnCheckRoam();
+    if(cur && cur.unit) unitCheckRoam();
   }
 
   // Once the mp3's duration is known, decide whether this surah gets chunked
@@ -1904,6 +1905,7 @@
   els.skipBtn.addEventListener('click', skip);
   els.prevRubBtn.addEventListener('click', () => { if(cur && cur.matn) prevBayt(); else if(cur && cur.unit) unitPrevUnit(); else if(duaMode) duaPrev(); else prevRub(); });
   els.rewindBtn.addEventListener('click', rewind);
+  els.forwardBtn.addEventListener('click', forward);
   els.volume.addEventListener('input', () => { els.audio.volume = Number(els.volume.value); });
   window.addEventListener('resize', () => { if(cur && cur.ayat) fitAyah(); });
 
@@ -2428,11 +2430,14 @@
     unitState.itemIdx = itemIdx;
     if(itemIdx >= unitState.items.length){ unitGoto(unitState.idx + 1, null); return; }  // unit done → next unit
     const item = unitState.items[itemIdx];
+    // Skip surahs this reciter's recording doesn't include.
+    if(unitCtx.surahList && !unitCtx.surahList.has(item.surahId)){ unitLoadItem(itemIdx + 1, null); return; }
     const track = unitTrack(item.surahId);
     const token = ++reviewToken;   // reuse the shared async guard
     cur = {
       unit: true, track, ayat: null, readerAyat: null, font: 'hafs18',
       startAyah: item.startAyah, endAyah: item.endAyah || SURAH_AYAT[item.surahId] || 9999,
+      surahAyat: SURAH_AYAT[item.surahId] || 999, hasTiming: !!unitCtx.hasTiming, roam: false,
       startT0: 0, endT1: null, playStart: 0, playEnd: Infinity,
       seekTime: (seekTime != null ? seekTime : null),
       trimApplied: false, timingsReady: false, recoveries: 0, resumeAt: null, token
@@ -2448,23 +2453,40 @@
     els.riwayahName.textContent = unitCtx.riwayahAr;
     els.audio.src = track.audioUrl;
     els.audio.play().catch(() => {});
+    // Seek position from the recording's own timing (independent of text, so it
+    // works for any riwayah). If the recording has no timing, applyUnitTrim
+    // approximates by ayah fraction instead.
+    if(unitCtx.hasTiming && unitCtx.readId != null){
+      fetchUnitTiming(unitCtx.readId, item.surahId).then(tim => {
+        if(!cur || cur.token !== token) return;
+        if(tim.length){
+          const sA = nearestTiming(tim, cur.startAyah); if(sA) cur.startT0 = sA.t0;
+          const eA = nearestTiming(tim, item.endAyah || cur.endAyah); if(eA) cur.endT1 = eA.t1;
+          cur.hasTiming = true;
+        } else cur.hasTiming = false;
+        cur.timingsReady = true; applyUnitTrim(); startUnitTick();
+      }).catch(() => { if(cur && cur.token === token){ cur.hasTiming = false; cur.timingsReady = true; applyUnitTrim(); startUnitTick(); } });
+    } else {
+      cur.hasTiming = false; cur.timingsReady = true;
+      applyUnitTrim(); startUnitTick();
+    }
+    // Text is best-effort — only riwayat with a published mushaf show verses.
     buildAyat(track).then(res => {
-      if(!cur || cur.token !== token) return;
-      if(res){
-        cur.ayat = res.ayat || []; cur.font = res.font || 'hafs18';
-        cur.readerAyat = cur.ayat.filter(a => a.n >= cur.startAyah && a.n <= cur.endAyah);
-        // Audio position comes from the raw timing, so it works for every
-        // riwayah. Nearest-ayah fallback keeps it a good approximation even when
-        // the exact boundary verse isn't individually marked.
-        const tim = res.timing || [];
-        const sA = nearestTiming(tim, cur.startAyah); if(sA) cur.startT0 = sA.t0;
-        const eA = nearestTiming(tim, item.endAyah || cur.endAyah); if(eA) cur.endT1 = eA.t1;
-        unitBuildReader();
-      }
-      cur.timingsReady = true;   // start/end times known → applyUnitTrim may seek
-      applyUnitTrim();
-      startUnitTick();
-    }).catch(() => { if(cur && cur.token === token){ cur.timingsReady = true; applyUnitTrim(); } });
+      if(!cur || cur.token !== token || !res) return;
+      cur.ayat = res.ayat || []; cur.font = res.font || 'hafs18';
+      cur.readerAyat = cur.ayat.filter(a => a.n >= cur.startAyah && a.n <= cur.endAyah);
+      unitBuildReader();
+    }).catch(() => {});
+  }
+  // Raw ayah timing for a read+surah, for the unit seek (bypasses text pairing).
+  function fetchUnitTiming(readId, surahId){
+    return fetchJSON(API + '/ayat_timing?surah=' + surahId + '&read=' + readId)
+      .then(arr => Array.isArray(arr)
+        ? arr.filter(a => a.ayah > 0 && a.start_time != null)
+             .map(a => ({ n: a.ayah, t0: a.start_time / 1000, t1: a.end_time / 1000 }))
+             .sort((a, b) => a.t0 - b.t0)
+        : [])
+      .catch(() => []);
   }
   // The timing entry whose ayah number is closest to n (for cross-riwayah seeks).
   function nearestTiming(arr, n){
@@ -2478,12 +2500,19 @@
     if(!cur || !cur.unit) return;
     const d = els.audio.duration;
     if(!isFinite(d) || d <= 0) return;
-    cur.playStart = cur.seekTime != null ? cur.seekTime : (cur.startT0 || 0);
-    cur.playEnd = cur.endT1 != null ? cur.endT1 : d;
-    // Only lock in the trim (and seek to the unit's start) once we actually know
-    // where the unit begins. The start time arrives with the timings, which may
-    // resolve after loadedmetadata fires — otherwise we'd play from ayah 0.
-    const ready = cur.timingsReady || cur.seekTime != null;
+    if(cur.hasTiming){
+      cur.playStart = cur.seekTime != null ? cur.seekTime : (cur.startT0 || 0);
+      cur.playEnd = cur.endT1 != null ? cur.endT1 : d;
+    } else {
+      // No timing for this reciter: approximate the position by ayah fraction of
+      // the surah's duration. Rough, but lands you near the right place.
+      const n = cur.surahAyat || 1;
+      cur.playStart = cur.seekTime != null ? cur.seekTime : ((cur.startAyah - 1) / n) * d;
+      cur.playEnd = Math.min(d, (cur.endAyah / n) * d);
+    }
+    // Lock in the trim (and seek to the start) once we know where the unit
+    // begins: for timed reads that's when timings resolve; for approx it's now.
+    const ready = cur.hasTiming ? (cur.timingsReady || cur.seekTime != null) : true;
     if(!cur.trimApplied && ready){
       cur.trimApplied = true;
       if(cur.playStart > 0.3 && Math.abs(els.audio.currentTime - cur.playStart) > 1) els.audio.currentTime = cur.playStart;
@@ -2491,12 +2520,19 @@
     cur.seekTime = null;
     unitScrollNow();
   }
+  // Once seeked outside the unit's window, unlock the auto-advance so the
+  // rewind / forward buttons can roam freely across juz'/rub' boundaries.
+  function unitCheckRoam(){
+    if(cur && cur.unit && (els.audio.currentTime < cur.playStart - 0.2 || els.audio.currentTime > cur.playEnd + 0.2)) cur.roam = true;
+  }
 
   function handleUnitTimeupdate(d){
     const t = els.audio.currentTime;
     lastPos = t;
     if(!cur.trimApplied){ applyUnitTrim(); if(!cur.trimApplied) return; }
-    if(t >= cur.playEnd - 0.2){
+    // roam = the listener seeked past the unit with rewind/forward; let it play
+    // on through the boundary instead of auto-jumping to the next unit.
+    if(!cur.roam && t >= cur.playEnd - 0.2){
       if(!advancing){ advancing = true; Promise.resolve(unitLoadItem(unitState.itemIdx + 1, null)).finally(() => { advancing = false; }); }
       return;
     }
@@ -2528,7 +2564,7 @@
     lastUnitSave = now;
     try{
       localStorage.setItem(UNIT_KEY + unitState.kind, JSON.stringify({
-        riwayahId: unitCtx.riwayahId, readId: unitCtx.readId,
+        riwayahId: unitCtx.riwayahId, readerId: unitCtx.readerId,
         idx: unitState.idx, itemIdx: unitState.itemIdx, time: els.audio.currentTime, at: now
       }));
     }catch(e){}
@@ -3281,29 +3317,62 @@
   function uSel(){ return unitSel[unitKind] || (unitSel[unitKind] = { riwayah: null, reader: {} }); }
   function lsNum(k){ try{ return parseInt(localStorage.getItem(k), 10); }catch(e){ return NaN; } }
 
-  function populateUnitReciters(){
-    const avail = UNIT_RIWAYAT.filter(rid => (unitReciters[rid] || []).length);
-    if(!avail.length){ setStatus('No reciters with text are available right now.'); return; }
-    const sel = uSel();
-    if(avail.indexOf(sel.riwayah) === -1){
-      const saved = lsNum('muqri.unit.riwayah.' + unitKind);
-      sel.riwayah = avail.indexOf(saved) !== -1 ? saved : avail[0];
-    }
-    els.unitRewaya.innerHTML = avail.map(rid =>
-      '<option value="' + rid + '"' + (rid === sel.riwayah ? ' selected' : '') + '>' +
-      (riwayahArMap[rid] || RIWAYAH_LABEL[rid]) + '</option>').join('');
-    fillUnitReaders();
+  // Every reader option for a riwayah: all reciters/moshafs on mp3quran. Those
+  // whose recording has ayah timings get precise sync + text; the rest still
+  // play, with juz'/rub' positions approximated by ayah fraction (no text).
+  async function unitReaders(rid){
+    if(unitReciters[rid]) return unitReciters[rid];
+    const out = [];
+    try{
+      await loadTimingReads();
+      const reciters = await getReciters(rid);
+      reciters.forEach(rec => {
+        (rec.moshaf || []).forEach(m => {
+          const server = moshafServer(m);
+          const readId = timingReadIndex[normServer(server)];
+          if(readId != null && UNIT_EXCLUDE.indexOf(readId) !== -1) return;   // known-bad timing
+          const surahs = String(m.surah_list || '').split(',').map(s => +s.trim()).filter(Boolean);
+          out.push({
+            id: m.id, nameAr: rec.name, server,
+            surahList: surahs.length ? new Set(surahs) : null,   // null → assume all 114
+            readId: readId != null ? readId : null, hasTiming: readId != null
+          });
+        });
+      });
+    }catch(e){}
+    out.sort((a, b) => (b.hasTiming - a.hasTiming) || a.nameAr.localeCompare(b.nameAr, 'ar'));
+    unitReciters[rid] = out;
+    return out;
   }
-  function fillUnitReaders(){
+  function unitRiwayahIds(){
+    return Object.keys(riwayahArMap).map(Number)
+      .sort((a, b) => (a === 1 ? -1 : b === 1 ? 1 : 0) || a - b);   // Hafs first
+  }
+  async function populateUnitReciters(){
+    const rids = unitRiwayahIds();
+    if(!rids.length){ setStatus('Could not load narrations.'); return; }
+    const sel = uSel();
+    if(rids.indexOf(sel.riwayah) === -1){
+      const saved = lsNum('muqri.unit.riwayah.' + unitKind);
+      sel.riwayah = rids.indexOf(saved) !== -1 ? saved : rids[0];
+    }
+    els.unitRewaya.innerHTML = rids.map(rid =>
+      '<option value="' + rid + '"' + (rid === sel.riwayah ? ' selected' : '') + '>' +
+      (riwayahArMap[rid] || RIWAYAH_LABEL[rid] || ('رواية ' + rid)) + '</option>').join('');
+    await fillUnitReaders();
+  }
+  async function fillUnitReaders(){
     const sel = uSel();
     const rid = sel.riwayah;
-    const list = unitReciters[rid] || [];
+    els.unitReaderSel.innerHTML = '<option>…</option>';
+    const list = await unitReaders(rid);
+    if(!list.length){ els.unitReaderSel.innerHTML = '<option value="">— none —</option>'; return; }
     let rd = sel.reader[rid];
     if(rd == null){
       const saved = lsNum('muqri.unit.reader.' + unitKind + '.' + rid);
-      rd = list.some(r => r.id === saved) ? saved : (list[0] && list[0].id);
+      rd = list.some(r => r.id === saved) ? saved : list[0].id;
     }
-    if(!list.some(r => r.id === rd)) rd = list[0] && list[0].id;
+    if(!list.some(r => r.id === rd)) rd = list[0].id;
     sel.reader[rid] = rd;
     els.unitReaderSel.innerHTML = list.map(r =>
       '<option value="' + r.id + '"' + (r.id === rd ? ' selected' : '') + '>' + r.nameAr + '</option>').join('');
@@ -3333,21 +3402,25 @@
     const rd = list.find(r => r.id === sel.reader[rid]) || list[0];
     if(!rd) return null;
     unitCtx = {
-      riwayahId: rid, readId: rd.id, server: rd.server, nameAr: rd.nameAr,
-      riwayahAr: riwayahArMap[rid] || RIWAYAH_LABEL[rid]
+      riwayahId: rid, readerId: rd.id, readId: rd.readId, server: rd.server, nameAr: rd.nameAr,
+      riwayahAr: riwayahArMap[rid] || RIWAYAH_LABEL[rid] || '',
+      surahList: rd.surahList, hasTiming: rd.hasTiming
     };
     return unitCtx;
   }
-  function startUnit(idx, resume){
+  async function startUnit(idx, resume){
     // Resuming restores the exact riwayah + reader that was playing.
-    if(resume && resume.riwayahId != null && (unitReciters[resume.riwayahId] || []).length){
-      const sel = uSel();
-      sel.riwayah = resume.riwayahId;
-      if(resume.readId != null && unitReciters[resume.riwayahId].some(r => r.id === resume.readId))
-        sel.reader[resume.riwayahId] = resume.readId;
-      populateUnitReciters();
+    if(resume && resume.riwayahId != null){
+      uSel().riwayah = resume.riwayahId;
+      els.unitRewaya.value = String(resume.riwayahId);
     }
-    if(!buildUnitCtx()){ setStatus('No reader available for this riwāyah.'); return; }
+    await fillUnitReaders();   // make sure this riwayah's readers are loaded
+    const sel = uSel();
+    if(resume && resume.readerId != null && (unitReciters[sel.riwayah] || []).some(r => r.id === resume.readerId)){
+      sel.reader[sel.riwayah] = resume.readerId;
+      els.unitReaderSel.value = String(resume.readerId);
+    }
+    if(!buildUnitCtx()){ setStatus('No reader available for this narration.'); return; }
     idx = Math.max(0, Math.min(unitTotal(unitKind) - 1, idx | 0));
     unitState = { kind: unitKind, total: unitTotal(unitKind), idx, items: [], label: '', itemIdx: 0 };
     setStatus('');
@@ -3362,11 +3435,11 @@
     }
   }
 
-  els.unitRewaya.addEventListener('change', () => {
+  els.unitRewaya.addEventListener('change', async () => {
     const sel = uSel();
     sel.riwayah = parseInt(els.unitRewaya.value, 10) || sel.riwayah;
     try{ localStorage.setItem('muqri.unit.riwayah.' + unitKind, String(sel.riwayah)); }catch(e){}
-    fillUnitReaders();
+    await fillUnitReaders();
     // Switching riwayah mid-session restarts the current unit in the new one.
     if(unitState && cur && cur.unit){ buildUnitCtx(); unitLoadItem(unitState.itemIdx, els.audio.currentTime); }
   });
