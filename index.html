@@ -1848,7 +1848,7 @@
     const rel = Math.min(Math.max(els.audio.currentTime - start, 0), span);
     els.barFill.style.width = (rel / span * 100) + '%';
     els.timeElapsed.textContent = fmtTime(rel);
-    els.timeTotal.textContent = fmtTime(span);
+    els.timeTotal.textContent = '-' + fmtTime(Math.max(0, span - rel));   // count down the remaining time
     updateAyahForTime(els.audio.currentTime);
     // End of a middle chunk: move on to the next random selection.
     if(cur && cur.chunked && cur.chunkIndex < cur.numChunks - 1
@@ -2177,7 +2177,7 @@
     const rel = Math.min(Math.max(t - cur.playStart, 0), span);
     els.barFill.style.width = (rel / span * 100) + '%';
     els.timeElapsed.textContent = fmtTime(rel);
-    els.timeTotal.textContent = fmtTime(span);
+    els.timeTotal.textContent = '-' + fmtTime(Math.max(0, span - rel));   // count down the remaining time
     startMatnTick();     // the smooth scroll runs on its own animation loop
     saveMatnProgress(false);
   }
@@ -2438,6 +2438,7 @@
       unit: true, track, ayat: null, readerAyat: null, font: 'hafs18',
       startAyah: item.startAyah, endAyah: item.endAyah || SURAH_AYAT[item.surahId] || 9999,
       surahAyat: SURAH_AYAT[item.surahId] || 999, hasTiming: !!unitCtx.hasTiming, roam: false,
+      finalItem: itemIdx === unitState.items.length - 1,   // only the last surah stops mid-file
       startT0: 0, endT1: null, playStart: 0, playEnd: Infinity,
       seekTime: (seekTime != null ? seekTime : null),
       trimApplied: false, timingsReady: false, recoveries: 0, resumeAt: null, token
@@ -2510,6 +2511,10 @@
       cur.playStart = cur.seekTime != null ? cur.seekTime : ((cur.startAyah - 1) / n) * d;
       cur.playEnd = Math.min(d, (cur.endAyah / n) * d);
     }
+    // Only the last surah of the unit stops mid-file (at the juz'/rub' boundary);
+    // every earlier surah plays right to its end, so the transition to the next
+    // surah is seamless and never skips its closing verses.
+    if(!cur.finalItem) cur.playEnd = d;
     // Lock in the trim (and seek to the start) once we know where the unit
     // begins: for timed reads that's when timings resolve; for approx it's now.
     const ready = cur.hasTiming ? (cur.timingsReady || cur.seekTime != null) : true;
@@ -2540,7 +2545,7 @@
     const rel = Math.min(Math.max(t - cur.playStart, 0), span);
     els.barFill.style.width = (rel / span * 100) + '%';
     els.timeElapsed.textContent = fmtTime(rel);
-    els.timeTotal.textContent = fmtTime(span);
+    els.timeTotal.textContent = '-' + fmtTime(Math.max(0, span - rel));   // count down the remaining time
     startUnitTick();
     saveUnitProgress(false);
   }
@@ -3108,7 +3113,7 @@
     const rel = Math.min(Math.max(t - seg.s, 0), span);
     els.barFill.style.width = (rel / span * 100) + '%';
     els.timeElapsed.textContent = fmtTime(rel);
-    els.timeTotal.textContent = fmtTime(span);
+    els.timeTotal.textContent = '-' + fmtTime(Math.max(0, span - rel));   // count down the remaining time
     updateAyahForTime(t);
     const cr = currentRub();
     if(cr && cr.idx !== cur._rubIdx){ cur._rubIdx = cr.idx; renderReviewQueue(); }
