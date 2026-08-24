@@ -248,6 +248,12 @@
   body.is-dua #rewindBtn,
   body.is-dua #forwardBtn{ display:none; }
 
+  /* Rumūz game tab: swap the whole player card for the embedded quiz. */
+  .game{ display:none; width:100%; max-width:440px; }
+  .game iframe{ width:100%; height:80vh; border:none; border-radius:16px; background:transparent; }
+  body.is-game .game{ display:block; }
+  body.is-game .card, body.is-game .rosette{ display:none; }
+
   .review-queue{ display:none; margin-top:20px; }
   body.is-review #reviewQueue{ display:block; }
   .matn-half{
@@ -772,6 +778,9 @@
     <button class="mode-tab" id="modeDua" role="tab" aria-selected="false">
       <span class="ar">دعاء</span><span class="sub">random</span>
     </button>
+    <button class="mode-tab" id="modeGame" role="tab" aria-selected="false">
+      <span class="ar">رموز</span><span class="sub">quiz</span>
+    </button>
   </div>
 
   <button class="install-btn" id="installBtn" hidden>Install app</button>
@@ -912,6 +921,8 @@
         <div class="rq-list" id="matnQueueList"></div>
       </div>
     </div>
+
+    <div class="game" id="gameWrap"><iframe id="gameFrame" title="رموز الشاطبية" loading="lazy"></iframe></div>
   </div>
 
   <details class="about">
@@ -1100,6 +1111,7 @@
   let matnMode = false;
   let unitMode = false;
   let duaMode = false;
+  let gameMode = false;
   let shatAyat = null;       // { n: {sadr, ajz} }, fetched at runtime
   let shatTitles = null;     // { firstBaytOfChapter: title }
   let shatTextPromise = null;
@@ -1285,6 +1297,8 @@
     unitTrack: document.getElementById('unitTrack'),
     unitThumb: document.getElementById('unitThumb'),
     modeDua: document.getElementById('modeDua'),
+    modeGame: document.getElementById('modeGame'),
+    gameFrame: document.getElementById('gameFrame'),
     duaCard: document.getElementById('duaCard'),
     duaScroll: document.getElementById('duaScroll'),
     duaText: document.getElementById('duaText'),
@@ -2776,8 +2790,10 @@
     unitMode = name === 'werd' || name === 'tajweed';
     unitKind = unitMode ? name : null;
     duaMode = name === 'dua';
+    gameMode = name === 'game';
     [['radio', els.modeRadio], ['friday', els.modeFriday], ['review', els.modeReview],
-     ['matn', els.modeMatn], ['werd', els.modeWerd], ['tajweed', els.modeTajweed], ['dua', els.modeDua]]
+     ['matn', els.modeMatn], ['werd', els.modeWerd], ['tajweed', els.modeTajweed],
+     ['dua', els.modeDua], ['game', els.modeGame]]
       .forEach(([n, el]) => {
         const on = n === name;
         el.classList.toggle('active', on);
@@ -2789,6 +2805,7 @@
       : name === 'werd' ? "Werd · juz' by juz'"
       : name === 'tajweed' ? "Tajwīd · rubʿ by rubʿ"
       : name === 'dua' ? "Duʿāʾ · supplications"
+      : name === 'game' ? "Rumūz · quiz"
       : "Random Qira'at Radio";
     els.reviewSetup.style.display = reviewMode ? 'block' : 'none';
     els.matnSetup.style.display = matnMode ? 'block' : 'none';
@@ -2797,6 +2814,8 @@
     document.body.classList.toggle('is-matn', matnMode);
     document.body.classList.toggle('is-unit', unitMode);
     document.body.classList.toggle('is-dua', duaMode);
+    document.body.classList.toggle('is-game', gameMode);
+    if(gameMode && !els.gameFrame.src) els.gameFrame.src = 'shatibiyya-keys.html';   // lazy-load once
     // Switching tabs never auto-plays; it pauses and resets to a ready state,
     // then waits for the play button (radio/friday) or Start (review).
     els.audio.pause();
@@ -2849,6 +2868,8 @@
       els.reciterName.textContent = '—';
       els.riwayahName.textContent = '—';
       prepareDua();
+    } else if(gameMode){
+      // Embedded rumūz quiz — the iframe carries its own UI, nothing to set up.
     } else {
       setEyebrow('PRESS PLAY', false);
       els.surahName.textContent = '—';
@@ -2865,6 +2886,7 @@
   els.modeWerd.addEventListener('click', () => setMode('werd'));
   els.modeTajweed.addEventListener('click', () => setMode('tajweed'));
   els.modeDua.addEventListener('click', () => setMode('dua'));
+  els.modeGame.addEventListener('click', () => setMode('game'));
 
   // ---- Review mode ------------------------------------------------------
 
@@ -3543,7 +3565,7 @@
     // Reopen the tab the listener was last on.
     let last = null;
     try{ last = localStorage.getItem('muqri.mode'); }catch(e){}
-    if(last && last !== 'radio' && ['friday','review','matn','werd','tajweed','dua'].indexOf(last) !== -1){
+    if(last && last !== 'radio' && ['friday','review','matn','werd','tajweed','dua','game'].indexOf(last) !== -1){
       setMode(last);
     }
   }

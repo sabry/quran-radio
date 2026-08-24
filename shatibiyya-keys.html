@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>رموز الشاطبية — لعبة الحفظ</title>
+<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-0:#0B1517; --bg-1:#0E1A1C; --panel:#132225; --panel-2:#182C30;
+    --line:rgba(201,162,75,0.22); --gold:#C9A24B; --parchment:#EDE6D6;
+    --muted:#8FA6A3; --green:#4CAF7D; --red:#D07A6B; --track:#22343a;
+    --gold-soft:rgba(201,162,75,0.55);
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body{
+    margin:0; min-height:100dvh; direction:rtl;
+    background:radial-gradient(1200px 800px at 50% -10%, #14282B 0%, var(--bg-1) 55%, var(--bg-0) 100%);
+    color:var(--parchment); font-family:'Work Sans', system-ui, sans-serif;
+    padding:22px 16px 44px; display:flex; flex-direction:column; align-items:center;
+  }
+  .wrap{ width:100%; max-width:520px; }
+  h1{ font-family:'Amiri',serif; font-weight:700; text-align:center; font-size:26px; margin:2px 0; }
+  .sub{ text-align:center; color:var(--muted); font-size:12px; margin-bottom:16px; }
+
+  .scorebar{ display:flex; justify-content:space-between; align-items:center;
+    background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:10px 16px; margin-bottom:12px; }
+  .scorebar b{ color:var(--gold); font-variant-numeric:tabular-nums; }
+  .scorebar .lbl{ font-size:11px; color:var(--muted); }
+
+  .chips{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; justify-content:center; }
+  .chip{ font-size:12px; padding:6px 12px; border-radius:100px; border:1px solid var(--line);
+    background:rgba(0,0,0,0.15); color:var(--muted); cursor:pointer; }
+  .chip.on{ color:var(--gold); background:rgba(201,162,75,0.14); border-color:var(--gold); }
+
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:22px 18px;
+    box-shadow:0 20px 50px -30px rgba(0,0,0,0.7); }
+  .qtype{ font-size:11px; color:var(--muted); letter-spacing:0.4px; margin-bottom:8px; }
+  .q{ font-family:'Amiri',serif; font-size:22px; line-height:1.7; margin-bottom:18px; }
+  .q .g{ color:var(--gold); }
+  .q .sym{ display:inline-block; min-width:1.6em; text-align:center; color:var(--gold);
+    border:1px solid var(--gold); border-radius:8px; padding:1px 8px; font-size:24px; }
+
+  .opts{ display:flex; flex-direction:column; gap:10px; }
+  .opt{ font-family:'Amiri',serif; font-size:18px; text-align:right; padding:12px 16px; border-radius:12px;
+    border:1px solid var(--line); background:var(--panel-2); color:var(--parchment); cursor:pointer; transition:.15s; }
+  .opt:hover{ border-color:var(--gold-soft); }
+  .opt.correct{ background:rgba(76,175,125,0.18); border-color:var(--green); color:#dff3e8; }
+  .opt.wrong{ background:rgba(208,122,107,0.16); border-color:var(--red); color:#f6ddd6; }
+  .opt.dim{ opacity:0.5; }
+
+  .feed{ margin-top:16px; min-height:26px; font-size:14px; text-align:center; }
+  .feed.ok{ color:var(--green); } .feed.no{ color:var(--red); }
+  .next{ display:block; width:100%; margin-top:14px; padding:13px; border-radius:12px; border:none;
+    background:var(--gold); color:#20160a; font-weight:600; font-size:15px; letter-spacing:0.4px; cursor:pointer; }
+  .next[hidden]{ display:none; }
+
+  .reftoggle{ margin-top:18px; text-align:center; }
+  .reftoggle button{ background:none; border:none; color:var(--gold); font-size:13px; cursor:pointer; }
+  .ref{ margin-top:12px; display:none; }
+  .ref.show{ display:block; }
+  table{ width:100%; border-collapse:collapse; font-family:'Amiri',serif; }
+  th,td{ border:1px solid var(--line); padding:6px 8px; text-align:center; font-size:14px; }
+  th{ color:var(--gold); font-size:12px; }
+  td.s{ color:var(--gold); font-weight:700; }
+  .ref h3{ color:var(--gold); font-family:'Amiri',serif; margin:16px 0 6px; font-size:16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>رموز الشاطبية</h1>
+  <div class="sub">القرّاء السبعة ورواتهم ورموزهم — تدرّب على كل الاتجاهات</div>
+
+  <div class="scorebar">
+    <div><span class="lbl">النقاط</span> <b id="score">0</b> / <span id="asked">0</span></div>
+    <div><span class="lbl">المتتالية</span> <b id="streak">0</b> 🔥</div>
+    <div><span class="lbl">الأفضل</span> <b id="best">0</b></div>
+  </div>
+
+  <div class="chips" id="chips"></div>
+
+  <div class="card">
+    <div class="qtype" id="qtype"></div>
+    <div class="q" id="q"></div>
+    <div class="opts" id="opts"></div>
+    <div class="feed" id="feed"></div>
+    <button class="next" id="next" hidden>التالي ←</button>
+  </div>
+
+  <div class="reftoggle"><button id="refbtn">إظهار جدول الرموز ▾</button></div>
+  <div class="ref" id="ref"></div>
+</div>
+
+<script>
+(function(){
+  // ---- Data (from the three key images) --------------------------------
+  const QURRA = [
+    { name:'نافع',     sym:'ج', group:'أبج', rawis:[{name:'قالون', sym:'أ'},           {name:'ورش',    sym:'ب'}] },
+    { name:'ابن كثير', sym:'ز', group:'دهز', rawis:[{name:'البزّي', sym:'د'},           {name:'قنبل',   sym:'هـ'}] },
+    { name:'أبو عمرو', sym:'ي', group:'حطي', rawis:[{name:'الدوري', sym:'حـ', of:'أبي عمرو'}, {name:'السوسي', sym:'ط'}] },
+    { name:'ابن عامر', sym:'م', group:'كلم', rawis:[{name:'هشام',  sym:'ك'},            {name:'ابن ذكوان', sym:'ل'}] },
+    { name:'عاصم',     sym:'ع', group:'نصع', rawis:[{name:'شعبة',  sym:'ن'},            {name:'حفص',    sym:'ص'}] },
+    { name:'حمزة',     sym:'ق', group:'فضق', rawis:[{name:'خلف',   sym:'ف', of:'حمزة'}, {name:'خلاد',   sym:'ض'}] },
+    { name:'الكسائي',  sym:'ت', group:'رست', rawis:[{name:'أبو الحارث', sym:'ر'},       {name:'الدوري', sym:'س', of:'الكسائي'}] },
+  ];
+  const GROUPS = [
+    { sym:'سما',  desc:'أعلى ثلاثة',      members:['نافع','ابن كثير','أبو عمرو'] },
+    { sym:'حرمي', desc:'إماما الحرمين',    members:['نافع','ابن كثير'] },
+    { sym:'حقّ',  desc:'ابن كثير وأبو عمرو', members:['ابن كثير','أبو عمرو'] },
+    { sym:'عمّ',  desc:'نافع وابن عامر',   members:['نافع','ابن عامر'] },
+    { sym:'نفر',  desc:'الابنان والأب',    members:['ابن كثير','ابن عامر','أبو عمرو'] },
+    { sym:'حصن',  desc:'نافع والكوفيون',   members:['نافع','عاصم','حمزة','الكسائي'] },
+    { sym:'صحبة', desc:'شعبة مع حمزة والكسائي', members:['شعبة','حمزة','الكسائي'] },
+    { sym:'صحاب', desc:'حفص مع حمزة والكسائي',  members:['حفص','حمزة','الكسائي'] },
+    { sym:'ث',   desc:'الكوفيون',         members:['عاصم','حمزة','الكسائي'] },
+    { sym:'خ',   desc:'الكل عدا نافع',    members:['ابن كثير','أبو عمرو','ابن عامر','عاصم','حمزة','الكسائي'] },
+    { sym:'ذ',   desc:'الكوفيون + الشامي', members:['عاصم','حمزة','الكسائي','ابن عامر'] },
+    { sym:'ظ',   desc:'الكوفيون + المكي',  members:['عاصم','حمزة','الكسائي','ابن كثير'] },
+    { sym:'غ',   desc:'الكوفيون + البصري', members:['عاصم','حمزة','الكسائي','أبو عمرو'] },
+    { sym:'ش',   desc:'حمزة والكسائي',    members:['حمزة','الكسائي'] },
+  ];
+
+  // Flattened rawi list with disambiguated display + owner qari.
+  const RAWIS = [];
+  QURRA.forEach(q => q.rawis.forEach(r => RAWIS.push({
+    name:r.name, disp:r.of ? (r.name+' (عن '+r.of+')') : r.name, sym:r.sym, qari:q.name
+  })));
+  const PEOPLE = QURRA.map(q=>({name:q.name, sym:q.sym, kind:'قارئ'}))
+    .concat(RAWIS.map(r=>({name:r.disp, sym:r.sym, kind:'راوٍ'})));
+
+  // ---- helpers ----------------------------------------------------------
+  const rnd = a => a[Math.floor(Math.random()*a.length)];
+  const shuffle = a => { a=a.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; };
+  function distract(pool, correct, n, key){
+    key = key || (x=>x);
+    const seen = new Set([key(correct)]);
+    const out = [];
+    for(const x of shuffle(pool)){ if(out.length>=n) break; if(!seen.has(key(x))){ seen.add(key(x)); out.push(x); } }
+    return out;
+  }
+  const symTag = s => '<span class="sym">'+s+'</span>';
+  const gtag = t => '<span class="g">'+t+'</span>';
+
+  // ---- question generators (by category) --------------------------------
+  // Each returns { type, cat, q(html), options:[{html, correct}] }
+  const GEN = {
+    // القراء ↔ الرواة
+    qariToRawis(){ const q=rnd(QURRA);
+      const opt = x => x.rawis.map(r=>r.name).join(' و ');
+      const opts = [{obj:q, correct:true}].concat(distract(QURRA,q,3,x=>x.name).map(x=>({obj:x,correct:false})));
+      return { cat:'core', type:'راويا القارئ',
+        q:'مَن راويا القارئ '+gtag('«'+q.name+'»')+'؟',
+        options: shuffle(opts).map(o=>({html:opt(o.obj), correct:o.correct})) }; },
+    rawiToQari(){ const r=rnd(RAWIS);
+      const opts=[{v:r.qari,correct:true}].concat(distract(QURRA.map(q=>q.name),r.qari,3,x=>x).map(v=>({v,correct:false})));
+      return { cat:'core', type:'الراوي عمّن روى',
+        q:'الراوي '+gtag('«'+r.disp+'»')+' '+symTag(r.sym)+' روى عن أيّ قارئ؟',
+        options: shuffle(opts).map(o=>({html:o.v, correct:o.correct})) }; },
+    otherRawi(){ const q=rnd(QURRA); const i=Math.floor(Math.random()*2); const one=q.rawis[i], two=q.rawis[1-i];
+      const others = RAWIS.filter(r=>r.name!==two.name && r.name!==one.name);
+      const opts=[{v:two.name,correct:true}].concat(distract(others,two,3,x=>x.name).map(x=>({v:x.name,correct:false})));
+      return { cat:'core', type:'الراوي الآخر',
+        q:'الراوي '+gtag('«'+one.name+'»')+' — مَن الراوي الآخر عن القارئ نفسه ('+q.name+')؟',
+        options: shuffle(opts).map(o=>({html:o.v, correct:o.correct})) }; },
+
+    // الرموز الفردية
+    personToSym(){ const p=rnd(PEOPLE);
+      const opts=[{v:p.sym,correct:true}].concat(distract(PEOPLE.map(x=>x.sym),p.sym,3,x=>x).map(v=>({v,correct:false})));
+      return { cat:'sym', type:'رمز الشخص',
+        q:'ما رمز '+p.kind+' '+gtag('«'+p.name+'»')+'؟',
+        options: shuffle(opts).map(o=>({html:symTag(o.v), correct:o.correct})) }; },
+    symToPerson(){ const p=rnd(PEOPLE);
+      const opts=[{v:p.name,correct:true}].concat(distract(PEOPLE,p,3,x=>x.name).map(x=>({v:x.name,correct:false})));
+      return { cat:'sym', type:'صاحب الرمز',
+        q:'لِمَن هذا الرمز: '+symTag(p.sym)+' ؟',
+        options: shuffle(opts).map(o=>({html:o.v, correct:o.correct})) }; },
+    qariGroupSym(){ const q=rnd(QURRA);
+      const opts=[{v:q.group,correct:true}].concat(distract(QURRA.map(x=>x.group),q.group,3,x=>x).map(v=>({v,correct:false})));
+      return { cat:'sym', type:'الرمز الثلاثي',
+        q:'ما الرمز الثلاثي (الراويان + القارئ) للقارئ '+gtag('«'+q.name+'»')+'؟',
+        options: shuffle(opts).map(o=>({html:symTag(o.v), correct:o.correct})) }; },
+
+    // الجماعات
+    groupToMembers(){ const g=rnd(GROUPS);
+      const opt = x => x.members.join('، ');
+      const opts=[{obj:g,correct:true}].concat(distract(GROUPS,g,3,x=>x.sym).map(x=>({obj:x,correct:false})));
+      return { cat:'grp', type:'دلالة الرمز الجماعي',
+        q:'على مَن يدلّ الرمز الجماعي '+symTag(g.sym)+' ؟',
+        options: shuffle(opts).map(o=>({html:opt(o.obj), correct:o.correct})) }; },
+    membersToGroup(){ const g=rnd(GROUPS);
+      const opts=[{v:g.sym,correct:true}].concat(distract(GROUPS.map(x=>x.sym),g.sym,3,x=>x).map(v=>({v,correct:false})));
+      return { cat:'grp', type:'الرمز الجماعي',
+        q:'ما الرمز الذي يعني: '+gtag('«'+g.desc+'»')+' ('+g.members.join('، ')+')؟',
+        options: shuffle(opts).map(o=>({html:symTag(o.v), correct:o.correct})) }; },
+  };
+  const BY_CAT = { core:['qariToRawis','rawiToQari','otherRawi'], sym:['personToSym','symToPerson','qariGroupSym'], grp:['groupToMembers','membersToGroup'] };
+
+  // ---- categories UI ----------------------------------------------------
+  const CATS = [ {id:'core', label:'القرّاء والرواة'}, {id:'sym', label:'الرموز'}, {id:'grp', label:'الجماعات'} ];
+  const active = new Set(['core','sym','grp']);
+  const chips = document.getElementById('chips');
+  CATS.forEach(c=>{ const b=document.createElement('div'); b.className='chip on'; b.textContent=c.label;
+    b.onclick=()=>{ if(active.has(c.id)){ if(active.size>1){ active.delete(c.id); b.classList.remove('on'); } }
+      else { active.add(c.id); b.classList.add('on'); } };
+    chips.appendChild(b); });
+
+  // ---- game loop --------------------------------------------------------
+  let score=0, asked=0, streak=0, best=0, answered=false;
+  try{ best=parseInt(localStorage.getItem('shat.keys.best'),10)||0; }catch(e){}
+  document.getElementById('best').textContent = best;
+  const el = id => document.getElementById(id);
+
+  function nextQ(){
+    answered=false;
+    const cats=[...active]; const pool=[]; cats.forEach(c=>pool.push(...BY_CAT[c]));
+    const q = GEN[rnd(pool)]();
+    el('qtype').textContent = q.type;
+    el('q').innerHTML = q.q;
+    el('feed').textContent=''; el('feed').className='feed';
+    el('next').hidden=true;
+    const opts = el('opts'); opts.innerHTML='';
+    q.options.forEach(o=>{
+      const b=document.createElement('button'); b.className='opt'; b.innerHTML=o.html;
+      b.onclick=()=>choose(b,o,q.options);
+      opts.appendChild(b);
+    });
+  }
+  function choose(btn,o,all){
+    if(answered) return; answered=true; asked++;
+    const btns=[...document.querySelectorAll('.opt')];
+    btns.forEach((b,i)=>{ const opt=all[i];
+      if(opt.correct) b.classList.add('correct');
+      else if(b===btn) b.classList.add('wrong');
+      else b.classList.add('dim');
+      b.style.cursor='default';
+    });
+    const f=el('feed');
+    if(o.correct){ score++; streak++; best=Math.max(best,streak);
+      try{ localStorage.setItem('shat.keys.best',String(best)); }catch(e){}
+      f.textContent='أحسنت ✓'; f.className='feed ok'; }
+    else { streak=0; f.textContent='ليست صحيحة — الإجابة مظلّلة بالأخضر'; f.className='feed no'; }
+    el('score').textContent=score; el('asked').textContent=asked;
+    el('streak').textContent=streak; el('best').textContent=best;
+    el('next').hidden=false;
+  }
+  el('next').onclick=nextQ;
+  document.addEventListener('keydown',e=>{ if(e.key==='Enter' && !el('next').hidden) nextQ(); });
+
+  // ---- reference table --------------------------------------------------
+  (function buildRef(){
+    let h = '<h3>القرّاء ورواتهم ورموزهم</h3><table><tr><th>القارئ</th><th>الرمز</th><th>الراوي ١</th><th>الرمز</th><th>الراوي ٢</th><th>الرمز</th><th>الثلاثي</th></tr>';
+    QURRA.forEach(q=>{ h+='<tr><td>'+q.name+'</td><td class="s">'+q.sym+'</td>'
+      +'<td>'+q.rawis[0].name+'</td><td class="s">'+q.rawis[0].sym+'</td>'
+      +'<td>'+q.rawis[1].name+'</td><td class="s">'+q.rawis[1].sym+'</td>'
+      +'<td class="s">'+q.group+'</td></tr>'; });
+    h+='</table><h3>الرموز الجماعية</h3><table><tr><th>الرمز</th><th>المعنى</th><th>القرّاء</th></tr>';
+    GROUPS.forEach(g=>{ h+='<tr><td class="s">'+g.sym+'</td><td>'+g.desc+'</td><td>'+g.members.join('، ')+'</td></tr>'; });
+    h+='</table>';
+    el('ref').innerHTML=h;
+  })();
+  el('refbtn').onclick=()=>{ const r=el('ref'); const on=r.classList.toggle('show');
+    el('refbtn').textContent = on ? 'إخفاء جدول الرموز ▴' : 'إظهار جدول الرموز ▾'; };
+
+  nextQ();
+})();
+</script>
+</body>
+</html>
