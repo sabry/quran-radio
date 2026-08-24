@@ -249,10 +249,12 @@
   body.is-dua #forwardBtn{ display:none; }
 
   /* Rumūz game tab: swap the whole player card for the embedded quiz. */
-  .game{ display:none; width:100%; max-width:440px; }
-  .game iframe{ width:100%; height:80vh; border:none; border-radius:16px; background:transparent; }
+  .game{ display:none; width:100%; max-width:460px; }
+  .game iframe{ display:block; width:100%; height:calc(100dvh - 170px); min-height:420px;
+    max-height:760px; border:none; border-radius:16px; background:transparent; color-scheme:dark; }
   body.is-game .game{ display:block; }
-  body.is-game .card, body.is-game .rosette{ display:none; }
+  body.is-game .card, body.is-game .rosette,
+  body.is-game .about, body.is-game .updated{ display:none; }
 
   .review-queue{ display:none; margin-top:20px; }
   body.is-review #reviewQueue{ display:block; }
@@ -775,11 +777,11 @@
     <button class="mode-tab" id="modeMatn" role="tab" aria-selected="false">
       <span class="ar">الشاطبية</span><span class="sub">matn</span>
     </button>
-    <button class="mode-tab" id="modeDua" role="tab" aria-selected="false">
-      <span class="ar">دعاء</span><span class="sub">random</span>
-    </button>
     <button class="mode-tab" id="modeGame" role="tab" aria-selected="false">
       <span class="ar">رموز</span><span class="sub">quiz</span>
+    </button>
+    <button class="mode-tab" id="modeDua" role="tab" aria-selected="false">
+      <span class="ar">دعاء</span><span class="sub">random</span>
     </button>
   </div>
 

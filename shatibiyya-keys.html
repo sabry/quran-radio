@@ -12,6 +12,10 @@
     --muted:#8FA6A3; --green:#4CAF7D; --red:#D07A6B; --track:#22343a;
     --gold-soft:rgba(201,162,75,0.55);
   }
+  html{ color-scheme:dark; scrollbar-width:thin; scrollbar-color:var(--gold-soft) transparent; }
+  ::-webkit-scrollbar{ width:9px; height:9px; }
+  ::-webkit-scrollbar-thumb{ background:var(--gold-soft); border-radius:6px; }
+  ::-webkit-scrollbar-track{ background:transparent; }
   *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   body{
     margin:0; min-height:100dvh; direction:rtl;
@@ -94,30 +98,36 @@
 <script>
 (function(){
   // ---- Data (from the three key images) --------------------------------
+  // Standard Shāṭibiyyah symbols: the first letter of each triplet is the QĀRĪ,
+  // then his two rāwīs (نافع=أ، قالون=ب، ورش=ج …).
   const QURRA = [
-    { name:'نافع',     sym:'ج', group:'أبج', rawis:[{name:'قالون', sym:'أ'},           {name:'ورش',    sym:'ب'}] },
-    { name:'ابن كثير', sym:'ز', group:'دهز', rawis:[{name:'البزّي', sym:'د'},           {name:'قنبل',   sym:'هـ'}] },
-    { name:'أبو عمرو', sym:'ي', group:'حطي', rawis:[{name:'الدوري', sym:'حـ', of:'أبي عمرو'}, {name:'السوسي', sym:'ط'}] },
-    { name:'ابن عامر', sym:'م', group:'كلم', rawis:[{name:'هشام',  sym:'ك'},            {name:'ابن ذكوان', sym:'ل'}] },
-    { name:'عاصم',     sym:'ع', group:'نصع', rawis:[{name:'شعبة',  sym:'ن'},            {name:'حفص',    sym:'ص'}] },
-    { name:'حمزة',     sym:'ق', group:'فضق', rawis:[{name:'خلف',   sym:'ف', of:'حمزة'}, {name:'خلاد',   sym:'ض'}] },
-    { name:'الكسائي',  sym:'ت', group:'رست', rawis:[{name:'أبو الحارث', sym:'ر'},       {name:'الدوري', sym:'س', of:'الكسائي'}] },
+    { name:'نافع',     full:'نافع بن عبد الرحمن', city:'المدينة',     nick:'المدني',  sym:'أ', group:'أبج',
+      rawis:[{name:'قالون', sym:'ب'}, {name:'ورش', sym:'ج'}] },
+    { name:'ابن كثير', full:'عبد الله بن كثير',   city:'مكة',         nick:'المكي',   sym:'د', group:'دهز',
+      rawis:[{name:'البزّي', sym:'هـ'}, {name:'قنبل', sym:'ز'}] },
+    { name:'أبو عمرو', full:'زبّان بن العلاء',    city:'البصرة',      nick:'البصري',  sym:'ح', group:'حطي',
+      rawis:[{name:'الدوري', sym:'ط', of:'أبي عمرو'}, {name:'السوسي', sym:'ي'}] },
+    { name:'ابن عامر', full:'عبد الله بن عامر',   city:'الشام (دمشق)', nick:'اليحصبي', sym:'ك', group:'كلم',
+      rawis:[{name:'هشام', sym:'ل'}, {name:'ابن ذكوان', sym:'م'}] },
+    { name:'عاصم',     full:'عاصم بن أبي النجود',  city:'الكوفة',      nick:'الكوفي',  sym:'ن', group:'نصع',
+      rawis:[{name:'شعبة', sym:'ص'}, {name:'حفص', sym:'ع'}] },
+    { name:'حمزة',     full:'حمزة بن حبيب الزيّات', city:'الكوفة',      nick:'الزيّات', sym:'ف', group:'فضق',
+      rawis:[{name:'خلف', sym:'ض', of:'حمزة'}, {name:'خلاد', sym:'ق'}] },
+    { name:'الكسائي',  full:'علي بن حمزة',        city:'الكوفة',      nick:'الكسائي', sym:'ر', group:'رست',
+      rawis:[{name:'أبو الحارث', sym:'س'}, {name:'الدوري', sym:'ت', of:'الكسائي'}] },
   ];
+  // The eight collective word-symbols (verified against standard references),
+  // plus the well-known named group الكوفيون.
   const GROUPS = [
-    { sym:'سما',  desc:'أعلى ثلاثة',      members:['نافع','ابن كثير','أبو عمرو'] },
-    { sym:'حرمي', desc:'إماما الحرمين',    members:['نافع','ابن كثير'] },
-    { sym:'حقّ',  desc:'ابن كثير وأبو عمرو', members:['ابن كثير','أبو عمرو'] },
-    { sym:'عمّ',  desc:'نافع وابن عامر',   members:['نافع','ابن عامر'] },
-    { sym:'نفر',  desc:'الابنان والأب',    members:['ابن كثير','ابن عامر','أبو عمرو'] },
-    { sym:'حصن',  desc:'نافع والكوفيون',   members:['نافع','عاصم','حمزة','الكسائي'] },
-    { sym:'صحبة', desc:'شعبة مع حمزة والكسائي', members:['شعبة','حمزة','الكسائي'] },
-    { sym:'صحاب', desc:'حفص مع حمزة والكسائي',  members:['حفص','حمزة','الكسائي'] },
-    { sym:'ث',   desc:'الكوفيون',         members:['عاصم','حمزة','الكسائي'] },
-    { sym:'خ',   desc:'الكل عدا نافع',    members:['ابن كثير','أبو عمرو','ابن عامر','عاصم','حمزة','الكسائي'] },
-    { sym:'ذ',   desc:'الكوفيون + الشامي', members:['عاصم','حمزة','الكسائي','ابن عامر'] },
-    { sym:'ظ',   desc:'الكوفيون + المكي',  members:['عاصم','حمزة','الكسائي','ابن كثير'] },
-    { sym:'غ',   desc:'الكوفيون + البصري', members:['عاصم','حمزة','الكسائي','أبو عمرو'] },
-    { sym:'ش',   desc:'حمزة والكسائي',    members:['حمزة','الكسائي'] },
+    { sym:'سما',  desc:'نافع وابن كثير وأبو عمرو',      members:['نافع','ابن كثير','أبو عمرو'] },
+    { sym:'حقّ',  desc:'ابن كثير وأبو عمرو',            members:['ابن كثير','أبو عمرو'] },
+    { sym:'نفر',  desc:'ابن كثير وأبو عمرو وابن عامر',  members:['ابن كثير','أبو عمرو','ابن عامر'] },
+    { sym:'عمّ',  desc:'نافع وابن عامر',                members:['نافع','ابن عامر'] },
+    { sym:'حرمي', desc:'قارئا الحرمين: نافع وابن كثير', members:['نافع','ابن كثير'] },
+    { sym:'صحبة', desc:'شعبة وحمزة والكسائي',           members:['شعبة','حمزة','الكسائي'] },
+    { sym:'صحاب', desc:'حفص وحمزة والكسائي',            members:['حفص','حمزة','الكسائي'] },
+    { sym:'حصن',  desc:'الكوفيون ونافع',               members:['نافع','عاصم','حمزة','الكسائي'] },
+    { sym:'الكوفيون', desc:'قرّاء الكوفة',              members:['عاصم','حمزة','الكسائي'] },
   ];
 
   // Flattened rawi list with disambiguated display + owner qari.
@@ -190,14 +200,37 @@
     membersToGroup(){ const g=rnd(GROUPS);
       const opts=[{v:g.sym,correct:true}].concat(distract(GROUPS.map(x=>x.sym),g.sym,3,x=>x).map(v=>({v,correct:false})));
       return { cat:'grp', type:'الرمز الجماعي',
-        q:'ما الرمز الذي يعني: '+gtag('«'+g.desc+'»')+' ('+g.members.join('، ')+')؟',
+        q:'ما الرمز الذي يدلّ على: '+gtag('«'+g.members.join('، ')+'»')+'؟',
         options: shuffle(opts).map(o=>({html:symTag(o.v), correct:o.correct})) }; },
+
+    // الأسماء والألقاب
+    nickToQari(){ const q=rnd(QURRA);
+      const opts=[{v:q.name,correct:true}].concat(distract(QURRA.map(x=>x.name),q.name,3,x=>x).map(v=>({v,correct:false})));
+      return { cat:'name', type:'اللقب',
+        q:'مَن القارئ الملقّب بـ '+gtag('«'+q.nick+'»')+'؟',
+        options: shuffle(opts).map(o=>({html:o.v, correct:o.correct})) }; },
+    fullToQari(){ const q=rnd(QURRA);
+      const opts=[{v:q.name,correct:true}].concat(distract(QURRA.map(x=>x.name),q.name,3,x=>x).map(v=>({v,correct:false})));
+      return { cat:'name', type:'الاسم الكامل',
+        q:'مَن القارئ صاحب اسم '+gtag('«'+q.full+'»')+'؟',
+        options: shuffle(opts).map(o=>({html:o.v, correct:o.correct})) }; },
+    qariToCity(){ const q=rnd(QURRA);
+      const cities=[...new Set(QURRA.map(x=>x.city))];
+      const opts=[{v:q.city,correct:true}].concat(distract(cities,q.city,3,x=>x).map(v=>({v,correct:false})));
+      return { cat:'name', type:'البلد',
+        q:'ما بلد القارئ '+gtag('«'+q.name+'»')+'؟',
+        options: shuffle(opts).map(o=>({html:o.v, correct:o.correct})) }; },
   };
-  const BY_CAT = { core:['qariToRawis','rawiToQari','otherRawi'], sym:['personToSym','symToPerson','qariGroupSym'], grp:['groupToMembers','membersToGroup'] };
+  const BY_CAT = {
+    core:['qariToRawis','rawiToQari','otherRawi'],
+    sym:['personToSym','symToPerson','qariGroupSym'],
+    grp:['groupToMembers','membersToGroup'],
+    name:['nickToQari','fullToQari','qariToCity'],
+  };
 
   // ---- categories UI ----------------------------------------------------
-  const CATS = [ {id:'core', label:'القرّاء والرواة'}, {id:'sym', label:'الرموز'}, {id:'grp', label:'الجماعات'} ];
-  const active = new Set(['core','sym','grp']);
+  const CATS = [ {id:'core', label:'القرّاء والرواة'}, {id:'name', label:'الأسماء والألقاب'}, {id:'sym', label:'الرموز'}, {id:'grp', label:'الجماعات'} ];
+  const active = new Set(['core','name','sym','grp']);
   const chips = document.getElementById('chips');
   CATS.forEach(c=>{ const b=document.createElement('div'); b.className='chip on'; b.textContent=c.label;
     b.onclick=()=>{ if(active.has(c.id)){ if(active.size>1){ active.delete(c.id); b.classList.remove('on'); } }
@@ -253,8 +286,10 @@
       +'<td>'+q.rawis[0].name+'</td><td class="s">'+q.rawis[0].sym+'</td>'
       +'<td>'+q.rawis[1].name+'</td><td class="s">'+q.rawis[1].sym+'</td>'
       +'<td class="s">'+q.group+'</td></tr>'; });
-    h+='</table><h3>الرموز الجماعية</h3><table><tr><th>الرمز</th><th>المعنى</th><th>القرّاء</th></tr>';
-    GROUPS.forEach(g=>{ h+='<tr><td class="s">'+g.sym+'</td><td>'+g.desc+'</td><td>'+g.members.join('، ')+'</td></tr>'; });
+    h+='</table><h3>الأسماء والألقاب والبلدان</h3><table><tr><th>القارئ</th><th>الاسم</th><th>البلد</th><th>اللقب</th></tr>';
+    QURRA.forEach(q=>{ h+='<tr><td>'+q.name+'</td><td>'+q.full+'</td><td>'+q.city+'</td><td>'+q.nick+'</td></tr>'; });
+    h+='</table><h3>الرموز الجماعية</h3><table><tr><th>الرمز</th><th>القرّاء</th></tr>';
+    GROUPS.forEach(g=>{ h+='<tr><td class="s">'+g.sym+'</td><td>'+g.members.join('، ')+'</td></tr>'; });
     h+='</table>';
     el('ref').innerHTML=h;
   })();
