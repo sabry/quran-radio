@@ -31,6 +31,10 @@
     background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:10px 16px; margin-bottom:12px; }
   .scorebar b{ color:var(--gold); font-variant-numeric:tabular-nums; }
   .scorebar .lbl{ font-size:11px; color:var(--muted); }
+  .acc{ font-size:12px; color:var(--green); font-variant-numeric:tabular-nums; }
+  .reset{ background:none; border:1px solid var(--line); color:var(--muted); border-radius:8px;
+    width:28px; height:28px; font-size:15px; cursor:pointer; line-height:1; }
+  .reset:active{ color:var(--gold); }
 
   .chips{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; justify-content:center; }
   .chip{ font-size:12px; padding:6px 12px; border-radius:100px; border:1px solid var(--line);
@@ -76,9 +80,9 @@
   <div class="sub">القرّاء السبعة ورواتهم ورموزهم — تدرّب على كل الاتجاهات</div>
 
   <div class="scorebar">
-    <div><span class="lbl">النقاط</span> <b id="score">0</b> / <span id="asked">0</span></div>
-    <div><span class="lbl">المتتالية</span> <b id="streak">0</b> 🔥</div>
-    <div><span class="lbl">الأفضل</span> <b id="best">0</b></div>
+    <div><span class="lbl">النقاط</span> <b id="score">0</b> / <span id="asked">0</span> <span id="acc" class="acc"></span></div>
+    <div><span class="lbl">المتتالية</span> <b id="streak">0</b> 🔥 <span class="lbl">أفضل</span> <b id="best">0</b></div>
+    <button id="reset" class="reset" title="تصفير النقاط">↺</button>
   </div>
 
   <div class="chips" id="chips"></div>
@@ -127,7 +131,13 @@
     { sym:'صحبة', desc:'شعبة وحمزة والكسائي',           members:['شعبة','حمزة','الكسائي'] },
     { sym:'صحاب', desc:'حفص وحمزة والكسائي',            members:['حفص','حمزة','الكسائي'] },
     { sym:'حصن',  desc:'الكوفيون ونافع',               members:['نافع','عاصم','حمزة','الكسائي'] },
-    { sym:'الكوفيون', desc:'قرّاء الكوفة',              members:['عاصم','حمزة','الكسائي'] },
+    // Single-letter group codes as in the uploaded key.
+    { sym:'ث',   desc:'الكوفيون',                      members:['عاصم','حمزة','الكسائي'] },
+    { sym:'خ',   desc:'الكل عدا نافع',                 members:['ابن كثير','أبو عمرو','ابن عامر','عاصم','حمزة','الكسائي'] },
+    { sym:'ذ',   desc:'الكوفيون والشامي',              members:['عاصم','حمزة','الكسائي','ابن عامر'] },
+    { sym:'ظ',   desc:'الكوفيون والمكي',               members:['عاصم','حمزة','الكسائي','ابن كثير'] },
+    { sym:'غ',   desc:'الكوفيون والبصري',              members:['عاصم','حمزة','الكسائي','أبو عمرو'] },
+    { sym:'ش',   desc:'حمزة والكسائي',                 members:['حمزة','الكسائي'] },
   ];
 
   // Flattened rawi list with disambiguated display + owner qari.
@@ -204,12 +214,17 @@
         options: shuffle(opts).map(o=>({html:symTag(o.v), correct:o.correct})) }; },
 
     // الأسماء والألقاب
-    nickToQari(){ const q=rnd(QURRA);
+    nickToQari(){ const q=rnd(QURRA.filter(x=>x.nick!==x.name));   // skip laqab == name (الكسائي)
       const opts=[{v:q.name,correct:true}].concat(distract(QURRA.map(x=>x.name),q.name,3,x=>x).map(v=>({v,correct:false})));
       return { cat:'name', type:'اللقب',
         q:'مَن القارئ الملقّب بـ '+gtag('«'+q.nick+'»')+'؟',
         options: shuffle(opts).map(o=>({html:o.v, correct:o.correct})) }; },
-    fullToQari(){ const q=rnd(QURRA);
+    fullToQari(){
+      // Only ask where the full name doesn't echo the short name (else it gives
+      // itself away): أبو عمرو = زبّان بن العلاء، الكسائي = علي بن حمزة.
+      const tokens = n => n.split(/\s+/).filter(w => w!=='ابن' && w!=='أبو' && w!=='بن');
+      const pool = QURRA.filter(x => !tokens(x.name).some(w => x.full.indexOf(w) !== -1));
+      const q=rnd(pool);
       const opts=[{v:q.name,correct:true}].concat(distract(QURRA.map(x=>x.name),q.name,3,x=>x).map(v=>({v,correct:false})));
       return { cat:'name', type:'الاسم الكامل',
         q:'مَن القارئ صاحب اسم '+gtag('«'+q.full+'»')+'؟',
@@ -238,10 +253,23 @@
     chips.appendChild(b); });
 
   // ---- game loop --------------------------------------------------------
+  // score & asked are a running lifetime tally (persisted); streak is per-run.
   let score=0, asked=0, streak=0, best=0, answered=false;
-  try{ best=parseInt(localStorage.getItem('shat.keys.best'),10)||0; }catch(e){}
-  document.getElementById('best').textContent = best;
+  const num = k => { try{ return parseInt(localStorage.getItem(k),10)||0; }catch(e){ return 0; } };
+  score=num('shat.keys.score'); asked=num('shat.keys.asked'); best=num('shat.keys.best');
   const el = id => document.getElementById(id);
+  function paintScore(){
+    el('score').textContent=score; el('asked').textContent=asked;
+    el('streak').textContent=streak; el('best').textContent=best;
+    el('acc').textContent = asked ? '· '+Math.round(score/asked*100)+'%' : '';
+  }
+  function saveScore(){ try{
+    localStorage.setItem('shat.keys.score',String(score));
+    localStorage.setItem('shat.keys.asked',String(asked));
+    localStorage.setItem('shat.keys.best',String(best));
+  }catch(e){} }
+  el('reset').onclick=()=>{ score=0; asked=0; streak=0; saveScore(); paintScore(); };
+  paintScore();
 
   function nextQ(){
     answered=false;
@@ -269,11 +297,9 @@
     });
     const f=el('feed');
     if(o.correct){ score++; streak++; best=Math.max(best,streak);
-      try{ localStorage.setItem('shat.keys.best',String(best)); }catch(e){}
       f.textContent='أحسنت ✓'; f.className='feed ok'; }
     else { streak=0; f.textContent='ليست صحيحة — الإجابة مظلّلة بالأخضر'; f.className='feed no'; }
-    el('score').textContent=score; el('asked').textContent=asked;
-    el('streak').textContent=streak; el('best').textContent=best;
+    saveScore(); paintScore();
     el('next').hidden=false;
   }
   el('next').onclick=nextQ;
