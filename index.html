@@ -1580,19 +1580,54 @@
       : '';
   }
 
-  function updateMediaSession(track){
+  // ---- Android / lock-screen media controls (Media Session API) ---------
+  const MEDIA_ARTWORK = [
+    { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+    { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' }
+  ];
+  function setMediaMeta(title, artist, album){
     if(!('mediaSession' in navigator)) return;
-    navigator.mediaSession.metadata = new MediaMetadata({
-      title: track.surahEn + partLabel() + ' — ' + track.surahAr,
-      artist: track.reciterAr,
-      album: track.riwayahEn
-    });
-    navigator.mediaSession.setActionHandler('play', () => els.audio.play());
-    navigator.mediaSession.setActionHandler('pause', () => els.audio.pause());
-    navigator.mediaSession.setActionHandler('nexttrack', () => skip());
     try{
-      navigator.mediaSession.setActionHandler('seekbackward', () => rewind());
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: title || 'Muqriʼ', artist: artist || '', album: album || 'Muqriʼ · مقرئ',
+        artwork: MEDIA_ARTWORK
+      });
     }catch(e){}
+  }
+  // The prev button's per-mode behaviour, shared by the on-screen button and the
+  // hardware / notification "previous" control.
+  function prevAction(){
+    if(cur && cur.matn) prevBayt();
+    else if(cur && cur.unit) unitPrevUnit();
+    else if(duaMode) duaPrev();
+    else if(reviewMode) prevRub();
+    // radio / friday have no "previous"
+  }
+  // Register the notification / lock-screen / headset controls once.
+  function initMediaControls(){
+    if(!('mediaSession' in navigator)) return;
+    const set = (a, fn) => { try{ navigator.mediaSession.setActionHandler(a, fn); }catch(e){} };
+    set('play', () => els.audio.play().catch(() => {}));
+    set('pause', () => els.audio.pause());
+    set('nexttrack', () => skip());
+    set('previoustrack', () => prevAction());
+    set('seekbackward', () => rewind());
+    set('seekforward', () => forward());
+  }
+  function updateMediaPosition(){
+    if(!('mediaSession' in navigator) || !navigator.mediaSession.setPositionState) return;
+    const d = els.audio.duration;
+    if(!isFinite(d) || d <= 0) return;
+    try{
+      navigator.mediaSession.setPositionState({
+        duration: d, playbackRate: els.audio.playbackRate || 1,
+        position: Math.min(Math.max(els.audio.currentTime, 0), d)
+      });
+    }catch(e){}
+  }
+  function updateMediaSession(track){
+    setMediaMeta((track.surahEn || '') + partLabel() + ' — ' + (track.surahAr || ''),
+      track.reciterAr, track.riwayahEn || 'Muqriʼ · مقرئ');
   }
 
   function renderTrack(track){
@@ -1855,6 +1890,7 @@
     const d = els.audio.duration;
     if(!isFinite(d) || d <= 0) return;
     lastPos = els.audio.currentTime;
+    updateMediaPosition();   // progress bar in the notification / lock screen
     if(cur && cur.matn){ handleMatnTimeupdate(d); return; }
     if(cur && cur.review){ handleReviewTimeupdate(d); return; }
     if(cur && cur.unit){ handleUnitTimeupdate(d); return; }
@@ -1919,7 +1955,7 @@
   }
   els.playBtn.addEventListener('click', togglePlay);
   els.skipBtn.addEventListener('click', skip);
-  els.prevRubBtn.addEventListener('click', () => { if(cur && cur.matn) prevBayt(); else if(cur && cur.unit) unitPrevUnit(); else if(duaMode) duaPrev(); else prevRub(); });
+  els.prevRubBtn.addEventListener('click', () => prevAction());
   els.rewindBtn.addEventListener('click', rewind);
   els.forwardBtn.addEventListener('click', forward);
   els.volume.addEventListener('input', () => { els.audio.volume = Number(els.volume.value); });
@@ -2271,14 +2307,8 @@
   }
 
   function updateMatnMedia(){
-    if(!('mediaSession' in navigator) || !cur || !cur.matn) return;
-    navigator.mediaSession.metadata = new MediaMetadata({
-      title: matnBabTitle(cur.curBayt || 1), artist: MATN_RECITER_AR, album: 'الشاطبية'
-    });
-    navigator.mediaSession.setActionHandler('play', () => els.audio.play());
-    navigator.mediaSession.setActionHandler('pause', () => els.audio.pause());
-    navigator.mediaSession.setActionHandler('nexttrack', () => nextBayt());
-    try{ navigator.mediaSession.setActionHandler('previoustrack', () => prevBayt()); }catch(e){}
+    if(!cur || !cur.matn) return;
+    setMediaMeta(matnBabTitle(cur.curBayt || 1), MATN_RECITER_AR, 'الشاطبية · Ash-Shāṭibiyyah');
   }
 
   // Queue of the abyat in the chosen range, tappable to jump.
@@ -2476,6 +2506,7 @@
     els.surahMeta.textContent = track.surahEn + ' · ' + unitState.label;
     els.reciterName.textContent = unitCtx.nameAr;
     els.riwayahName.textContent = unitCtx.riwayahAr;
+    setMediaMeta(track.surahAr + ' · ' + unitState.label, unitCtx.nameAr, unitCtx.riwayahAr);
     els.audio.src = track.audioUrl;
     els.audio.play().catch(() => {});
     // Seek position from the recording's own timing (independent of text, so it
@@ -3560,6 +3591,7 @@
   })();
 
   async function init(){
+    initMediaControls();   // notification / lock-screen / headset media controls
     loadTimingReads();
     try{
       await loadMeta();
