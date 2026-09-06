@@ -152,7 +152,9 @@
   //  ruling: the حكم the bayt establishes
   //  who   : the qurrāʾ / رواة the ruling applies to
   //  keys  : how the رمز is decoded from the bayt (shown after answering)
-  const ABYAT = [
+  // This inline set is the offline seed; the full, growing collection is loaded
+  // from shatibiyya-abyat.json at startup (see loadAbyat below) and replaces it.
+  let ABYAT = [
     { bayt:'وَمَالِكِ يَوْمِ الدِّينِ رَاوِيهِ نَاصِرٌ ٭ وَعِنْدَ سِرَاطٍ وَالسِّرَاطِ لِقُنْبُلَا',
       ref:'باب سورة أم القرآن',
       ruling:'قراءة «مَالِكِ» بالألف (المدّ) في الفاتحة',
@@ -200,6 +202,14 @@
   }
   const symTag = s => '<span class="sym">'+s+'</span>';
   const gtag = t => '<span class="g">'+t+'</span>';
+  // Strip Arabic diacritics/tatweel so we can test whether a name is written
+  // out in a bayt regardless of its vowelling.
+  const bare = s => (s||'').replace(/[ً-ْٰـ]/g,'');
+  // A bayt has a "hidden" attribution (good for the decode question) only if
+  // none of the qurrāʾ/ruwāt the ruling applies to is spelled out in the line
+  // itself — otherwise the answer is simply written there.
+  const hiddenAttr = d => { const line = bare(d.bayt);
+    return !(d.who||[]).some(n => { const b=bare(n); return b.length>2 && line.indexOf(b)!==-1; }); };
 
   // ---- question generators (by category) --------------------------------
   // Each returns { type, cat, q(html), options:[{html, correct}] }
@@ -285,14 +295,18 @@
         q:'يقول الإمام الشاطبي:<div class="bayt">'+d.bayt+'</div>ما الحكم الذي يقرّره هذا البيت؟',
         options: shuffle(opts).map(o=>({html:o.v, correct:o.correct})) }; },
     // الأبيات: quote a bayt + its ruling, ask whom it applies to (decode الرموز).
-    baytWho(){ const d=rnd(ABYAT);
+    // Only draw from abyāt where the attribution is a hidden رمز — never ones
+    // that name a qārīʾ/rāwī outright (else the line gives the answer away).
+    // Detected automatically: if a person's name appears (unvowelled) in the
+    // line, it's an explicit تصريح and excluded from this question type.
+    baytWho(){ const pool = ABYAT.filter(hiddenAttr); const d=rnd(pool.length?pool:ABYAT);
       const str = a => a.join('، ');
       const correct = str(d.who);
       const opts=[{v:correct, correct:true}];
       const seen = new Set([correct]);
       // distractors: other abyāt's people, then group memberships.
-      const pool = ABYAT.filter(x=>x!==d).map(x=>str(x.who)).concat(GROUPS.map(g=>str(g.members)));
-      for(const p of shuffle(pool)){ if(opts.length>=4) break; if(!seen.has(p)){ seen.add(p); opts.push({v:p, correct:false}); } }
+      const dpool = ABYAT.filter(x=>x!==d).map(x=>str(x.who)).concat(GROUPS.map(g=>str(g.members)));
+      for(const p of shuffle(dpool)){ if(opts.length>=4) break; if(!seen.has(p)){ seen.add(p); opts.push({v:p, correct:false}); } }
       return { cat:'qir', type:'على مَن ينطبق الحكم؟',
         note:'الرمز: '+d.keys,
         q:'هذا البيت يقرّر '+gtag('«'+d.ruling+'»')+':<div class="bayt">'+d.bayt+'</div>على مَن ينطبق هذا الحكم؟ (فُكَّ الرمز)',
@@ -370,7 +384,7 @@
   document.addEventListener('keydown',e=>{ if(e.key==='Enter' && !el('next').hidden) nextQ(); });
 
   // ---- reference table --------------------------------------------------
-  (function buildRef(){
+  function buildRef(){
     let h = '<h3>القرّاء ورواتهم ورموزهم</h3><table><tr><th>القارئ</th><th>الرمز</th><th>الراوي ١</th><th>الرمز</th><th>الراوي ٢</th><th>الرمز</th><th>الثلاثي</th></tr>';
     QURRA.forEach(q=>{ h+='<tr><td>'+q.name+'</td><td class="s">'+q.sym+'</td>'
       +'<td>'+q.rawis[0].name+'</td><td class="s">'+q.rawis[0].sym+'</td>'
@@ -385,10 +399,32 @@
       h+='<tr><td>'+d.bayt+'<br><span style="color:var(--muted);font-size:11px">'+d.ref+' · '+d.keys+'</span></td>'
         +'<td>'+d.ruling+'</td><td>'+d.who.join('، ')+'</td></tr>'; });
     h+='</table>';
+    const cov = document.getElementById('cov'); if(cov) cov.textContent = 'عدد الأبيات المشمولة: '+new Set(ABYAT.map(d=>d.bayt)).size+' · عدد الأحكام: '+ABYAT.length;
     el('ref').innerHTML=h;
-  })();
+  }
+  buildRef();
   el('refbtn').onclick=()=>{ const r=el('ref'); const on=r.classList.toggle('show');
     el('refbtn').textContent = on ? 'إخفاء جدول الرموز ▴' : 'إظهار جدول الرموز ▾'; };
+
+  // ---- load the full abyāt collection (JSON), fall back to inline seed ----
+  // Flatten {n,bab,bayt,rulings:[{ruling,who,keys}]} into the flat rows the
+  // generators use, and refresh the table once loaded.
+  function flattenAbyat(json){
+    const out=[];
+    (json.abyat||[]).forEach(b=>{ (b.rulings||[]).forEach(r=>{
+      out.push({ n:b.n, ref:b.bab, bayt:b.bayt, ruling:r.ruling, who:r.who||[], keys:r.keys||'' }); }); });
+    return out;
+  }
+  (function loadAbyat(){
+    const CACHE_KEY='shat.abyat.v1';
+    try{ const c=JSON.parse(localStorage.getItem(CACHE_KEY)||'null');
+      if(c && c.length){ ABYAT=c; buildRef(); } }catch(e){}
+    fetch('./shatibiyya-abyat.json',{cache:'no-cache'}).then(r=>r.ok?r.json():null).then(j=>{
+      if(!j) return; const flat=flattenAbyat(j);
+      if(flat.length){ ABYAT=flat; buildRef();
+        try{ localStorage.setItem(CACHE_KEY, JSON.stringify(flat)); }catch(e){} }
+    }).catch(()=>{});
+  })();
 
   nextQ();
 })();

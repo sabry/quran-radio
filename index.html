@@ -1181,11 +1181,19 @@
   // by name against the live mp3quran list, so it survives roster changes).
   const BEAUTY_BIAS = 0.4;
   const BEAUTIFUL = [
-    'عبد الباسط','المنشاوي','الحصري','مصطفى','الدوسري','دريس','القطامي','فارس عباد',
-    'المعيقلي','الشريم','بليلة','الجهني','البلوشي','الطبلاوي','المطرود','الطنيجي',
-    'الغامدي','العجمي','جبريل','بصفر','اللحيدان','الحذيفي','بو خاطر'
+    // القراء المصريون الكبار
+    'عبد الباسط','المنشاوي','الحصري','مصطفى إسماعيل','البنا','رفعت','نعينع','الطبلاوي',
+    // الحرمان والمشاهير
+    'المعيقلي','الشريم','الدوسري','القطامي','بليلة','الجهني','الحذيفي','اللحيدان',
+    'الشاطري','الرفاعي','محمد أيوب','الثبيتي','القاسم','الغامدي','العجمي','جبريل',
+    'بصفر','فارس عباد','المطرود','بو خاطر','الجليل','الكردي','الطنيجي','البلوشي',
+    // القراءات والروايات الأخرى
+    'دريس','القزابري','صوفي','حنيف','الصايغ','الطاروطي','المرصفي'
   ];
   const isBeautiful = name => BEAUTIFUL.some(n => (name || '').indexOf(n) !== -1);
+  // Reciters the listener never wants to hear, filtered from every tab.
+  const BLOCKED = ['العفاسي','السديس'];
+  const isBlocked = name => BLOCKED.some(n => (name || '').indexOf(n) !== -1);
 
   // Riwayah weighting.
   //
@@ -1503,7 +1511,7 @@
   async function getReciters(riwayahId){
     if(recitersCache[riwayahId]) return recitersCache[riwayahId];
     const data = await fetchJSON(API + '/reciters?language=ar&rewaya=' + riwayahId);
-    const list = (data.reciters || []).filter(r => r.moshaf && r.moshaf.length);
+    const list = (data.reciters || []).filter(r => r.moshaf && r.moshaf.length && !isBlocked(r.name));
     recitersCache[riwayahId] = list;
     return list;
   }
@@ -1544,7 +1552,12 @@
         if(!reciters.length) continue;
 
         let reciter, moshaf;
-        const pretty = Math.random() < BEAUTY_BIAS ? reciters.filter(r => isBeautiful(r.name)) : [];
+        // Melodic bias applies to Hafs ONLY. The rare qira'āt have just a
+        // handful of recordings each, so filtering them to "beautiful" names
+        // would gut the very variety the radio exists to showcase — there we
+        // always draw the full pool.
+        const pretty = (riwayahId === 1 && Math.random() < BEAUTY_BIAS)
+          ? reciters.filter(r => isBeautiful(r.name)) : [];
         if(pretty.length){
           reciter = pickRandom(pretty);
           moshaf = pickRandom(reciter.moshaf);
