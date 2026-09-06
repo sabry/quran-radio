@@ -57,8 +57,13 @@
   .opt.wrong{ background:rgba(208,122,107,0.16); border-color:var(--red); color:#f6ddd6; }
   .opt.dim{ opacity:0.5; }
 
+  .q .bayt{ font-family:'Amiri',serif; font-size:24px; line-height:2; color:var(--gold);
+    text-align:center; margin:14px 0; padding:10px 8px; border-block:1px solid var(--line); }
   .feed{ margin-top:16px; min-height:26px; font-size:14px; text-align:center; }
   .feed.ok{ color:var(--green); } .feed.no{ color:var(--red); }
+  .feed .note{ margin-top:8px; font-family:'Amiri',serif; font-size:15px; line-height:1.7;
+    color:var(--parchment); background:var(--panel-2); border:1px solid var(--line);
+    border-radius:10px; padding:9px 12px; text-align:right; }
   .next{ display:block; width:100%; margin-top:14px; padding:13px; border-radius:12px; border:none;
     background:var(--gold); color:#20160a; font-weight:600; font-size:15px; letter-spacing:0.4px; cursor:pointer; }
   .next[hidden]{ display:none; }
@@ -138,6 +143,41 @@
     { sym:'ظ',   desc:'الكوفيون والمكي',               members:['عاصم','حمزة','الكسائي','ابن كثير'] },
     { sym:'غ',   desc:'الكوفيون والبصري',              members:['عاصم','حمزة','الكسائي','أبو عمرو'] },
     { sym:'ش',   desc:'حمزة والكسائي',                 members:['حمزة','الكسائي'] },
+  ];
+  // Abyāt from al-Shāṭibiyyah (متن حرز الأماني). Each line encodes a ruling and
+  // names — via the رموز — the qurrāʾ it applies to. Text is byte-exact from the
+  // متن; each ruling + attribution is verified against شرح الشاطبية.
+  //  bayt  : the verse of the poem (٭ marks the شطر break)
+  //  ref   : the باب it sits in
+  //  ruling: the حكم the bayt establishes
+  //  who   : the qurrāʾ / رواة the ruling applies to
+  //  keys  : how the رمز is decoded from the bayt (shown after answering)
+  const ABYAT = [
+    { bayt:'وَمَالِكِ يَوْمِ الدِّينِ رَاوِيهِ نَاصِرٌ ٭ وَعِنْدَ سِرَاطٍ وَالسِّرَاطِ لِقُنْبُلَا',
+      ref:'باب سورة أم القرآن',
+      ruling:'قراءة «مَالِكِ» بالألف (المدّ) في الفاتحة',
+      who:['عاصم','الكسائي'],
+      keys:'الرمزان مُضمَران في أوائل الكلمات: رَاوِيهِ (رـ = الكسائي) نَاصِرٌ (نـ = عاصم)؛ والباقون بلا ألف «مَلِكِ».' },
+    { bayt:'بِحَيْثُ أَتَى وَالصَّادُ زَايًا أَشِمَّهَا ٭ لَدَى خَلَفٍ وَاشْمِمْ لِخَلَّادٍ الأَوَّلَا',
+      ref:'باب سورة أم القرآن',
+      ruling:'إشمام الصاد صوتَ الزاي في «الصِّراط»',
+      who:['خلف','خلاد'],
+      keys:'خَلَف (عن حمزة) يُشِمّ في كل القرآن، وخَلَّاد في الموضع الأول (الفاتحة) فقط.' },
+    { bayt:'عَلَيْهِمْ إِلَيْهِمْ حَمْزَةٌ وَلَدَيْهِمُو ٭ جَمِيعًا بِضَمِّ الْهَاءِ وَقْفًا وَمَوْصِلَا',
+      ref:'باب سورة أم القرآن',
+      ruling:'ضمّ هاء الضمير في «عليهُم، إليهُم، لديهُم» وصلًا ووقفًا',
+      who:['حمزة'],
+      keys:'حَمْزَة مُسمّى صراحةً في البيت؛ والباقون بالكسر «عليهِم».' },
+    { bayt:'وَصِلْ ضَمَّ مِيمِ الْجَمْعِ قَبْلَ مُحَرِّكٍ ٭ دِرَاكًا وَقَالُونٌ بِتَخْيِيرِهِ جَلَا',
+      ref:'باب سورة أم القرآن',
+      ruling:'صلة ميم الجمع (بواو) إذا جاء بعدها متحرّك',
+      who:['ابن كثير','قالون'],
+      keys:'دِرَاكًا (دـ = ابن كثير) يَصِل دائمًا، وقالون بالتخيير: صلة أو إسكان.' },
+    { bayt:'وَتَسْهِيلُ أُخْرَى هَمْزَتَيْنِ بِكِلْمَةٍ ٭ سَمَا وَبِذَاتِ الْفَتْحِ خُلْفٌ لِتَجْمُلَا',
+      ref:'باب الهمزتين من كلمة',
+      ruling:'تسهيل الهمزة الثانية من همزتين في كلمة واحدة',
+      who:['نافع','ابن كثير','أبو عمرو'],
+      keys:'الرمز الجماعي «سَمَا» = نافع وابن كثير وأبو عمرو.' },
   ];
 
   // Flattened rawi list with disambiguated display + owner qari.
@@ -235,17 +275,40 @@
       return { cat:'name', type:'البلد',
         q:'ما بلد القارئ '+gtag('«'+q.name+'»')+'؟',
         options: shuffle(opts).map(o=>({html:o.v, correct:o.correct})) }; },
+
+    // الأبيات — نصّ الشاطبية: quote a bayt, ask what ruling it states.
+    baytRuling(){ const d=rnd(ABYAT);
+      const opts=[{v:d.ruling, correct:true}]
+        .concat(distract(ABYAT.filter(x=>x!==d), d, 3, x=>x.ruling).map(x=>({v:x.ruling, correct:false})));
+      return { cat:'qir', type:'ماذا يقرّر البيت؟',
+        note:'البيت: '+d.ref+' — '+d.keys,
+        q:'يقول الإمام الشاطبي:<div class="bayt">'+d.bayt+'</div>ما الحكم الذي يقرّره هذا البيت؟',
+        options: shuffle(opts).map(o=>({html:o.v, correct:o.correct})) }; },
+    // الأبيات: quote a bayt + its ruling, ask whom it applies to (decode الرموز).
+    baytWho(){ const d=rnd(ABYAT);
+      const str = a => a.join('، ');
+      const correct = str(d.who);
+      const opts=[{v:correct, correct:true}];
+      const seen = new Set([correct]);
+      // distractors: other abyāt's people, then group memberships.
+      const pool = ABYAT.filter(x=>x!==d).map(x=>str(x.who)).concat(GROUPS.map(g=>str(g.members)));
+      for(const p of shuffle(pool)){ if(opts.length>=4) break; if(!seen.has(p)){ seen.add(p); opts.push({v:p, correct:false}); } }
+      return { cat:'qir', type:'على مَن ينطبق الحكم؟',
+        note:'الرمز: '+d.keys,
+        q:'هذا البيت يقرّر '+gtag('«'+d.ruling+'»')+':<div class="bayt">'+d.bayt+'</div>على مَن ينطبق هذا الحكم؟ (فُكَّ الرمز)',
+        options: shuffle(opts).map(o=>({html:o.v, correct:o.correct})) }; },
   };
   const BY_CAT = {
     core:['qariToRawis','rawiToQari','otherRawi'],
     sym:['personToSym','symToPerson','qariGroupSym'],
     grp:['groupToMembers','membersToGroup'],
     name:['nickToQari','fullToQari','qariToCity'],
+    qir:['baytRuling','baytWho'],
   };
 
   // ---- categories UI ----------------------------------------------------
-  const CATS = [ {id:'core', label:'القرّاء والرواة'}, {id:'name', label:'الأسماء والألقاب'}, {id:'sym', label:'الرموز'}, {id:'grp', label:'الجماعات'} ];
-  const active = new Set(['core','name','sym','grp']);
+  const CATS = [ {id:'core', label:'القرّاء والرواة'}, {id:'name', label:'الأسماء والألقاب'}, {id:'sym', label:'الرموز'}, {id:'grp', label:'الجماعات'}, {id:'qir', label:'أبيات الشاطبية (الأحكام)'} ];
+  const active = new Set(['core','name','sym','grp','qir']);
   const chips = document.getElementById('chips');
   CATS.forEach(c=>{ const b=document.createElement('div'); b.className='chip on'; b.textContent=c.label;
     b.onclick=()=>{ if(active.has(c.id)){ if(active.size>1){ active.delete(c.id); b.classList.remove('on'); } }
@@ -254,7 +317,7 @@
 
   // ---- game loop --------------------------------------------------------
   // score & asked are a running lifetime tally (persisted); streak is per-run.
-  let score=0, asked=0, streak=0, best=0, answered=false;
+  let score=0, asked=0, streak=0, best=0, answered=false, curQ=null;
   const num = k => { try{ return parseInt(localStorage.getItem(k),10)||0; }catch(e){ return 0; } };
   score=num('shat.keys.score'); asked=num('shat.keys.asked'); best=num('shat.keys.best');
   const el = id => document.getElementById(id);
@@ -274,7 +337,7 @@
   function nextQ(){
     answered=false;
     const cats=[...active]; const pool=[]; cats.forEach(c=>pool.push(...BY_CAT[c]));
-    const q = GEN[rnd(pool)]();
+    const q = GEN[rnd(pool)](); curQ=q;
     el('qtype').textContent = q.type;
     el('q').innerHTML = q.q;
     el('feed').textContent=''; el('feed').className='feed';
@@ -299,6 +362,7 @@
     if(o.correct){ score++; streak++; best=Math.max(best,streak);
       f.textContent='أحسنت ✓'; f.className='feed ok'; }
     else { streak=0; f.textContent='ليست صحيحة — الإجابة مظلّلة بالأخضر'; f.className='feed no'; }
+    if(curQ && curQ.note){ const n=document.createElement('div'); n.className='note'; n.textContent=curQ.note; f.appendChild(n); }
     saveScore(); paintScore();
     el('next').hidden=false;
   }
@@ -316,6 +380,10 @@
     QURRA.forEach(q=>{ h+='<tr><td>'+q.name+'</td><td>'+q.full+'</td><td>'+q.city+'</td><td>'+q.nick+'</td></tr>'; });
     h+='</table><h3>الرموز الجماعية</h3><table><tr><th>الرمز</th><th>القرّاء</th></tr>';
     GROUPS.forEach(g=>{ h+='<tr><td class="s">'+g.sym+'</td><td>'+g.members.join('، ')+'</td></tr>'; });
+    h+='</table><h3>أبيات الشاطبية — الأحكام والرموز</h3><table><tr><th>البيت</th><th>الحكم</th><th>على مَن</th></tr>';
+    ABYAT.forEach(d=>{
+      h+='<tr><td>'+d.bayt+'<br><span style="color:var(--muted);font-size:11px">'+d.ref+' · '+d.keys+'</span></td>'
+        +'<td>'+d.ruling+'</td><td>'+d.who.join('، ')+'</td></tr>'; });
     h+='</table>';
     el('ref').innerHTML=h;
   })();
