@@ -303,7 +303,7 @@
     // that name a qārīʾ/rāwī outright (else the line gives the answer away).
     // Detected automatically: if a person's name appears (unvowelled) in the
     // line, it's an explicit تصريح and excluded from this question type.
-    baytWho(){ const pool = ABYAT.filter(hiddenAttr); const d=rnd(pool.length?pool:ABYAT);
+    baytWho(){ const pool = ABYAT.filter(d=>d.ask!==false && hiddenAttr(d)); const d=rnd(pool.length?pool:ABYAT);
       const str = a => a.join('، ');
       const correct = str(d.who);
       const opts=[{v:correct, correct:true}];
@@ -416,7 +416,7 @@
   function flattenAbyat(json){
     const out=[];
     (json.abyat||[]).forEach(b=>{ (b.rulings||[]).forEach(r=>{
-      out.push({ n:b.n, ref:b.bab, bayt:b.bayt, ruling:r.ruling, who:r.who||[], keys:r.keys||'' }); }); });
+      out.push({ n:b.n, ref:b.bab, bayt:b.bayt, ruling:r.ruling, who:r.who||[], keys:r.keys||'', ask:r.ask }); }); });
     return out;
   }
   (function loadAbyat(){
