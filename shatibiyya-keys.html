@@ -205,11 +205,15 @@
   // Strip Arabic diacritics/tatweel so we can test whether a name is written
   // out in a bayt regardless of its vowelling.
   const bare = s => (s||'').replace(/[ً-ْٰـ]/g,'');
-  // A bayt has a "hidden" attribution (good for the decode question) only if
-  // none of the qurrāʾ/ruwāt the ruling applies to is spelled out in the line
-  // itself — otherwise the answer is simply written there.
-  const hiddenAttr = d => { const line = bare(d.bayt);
-    return !(d.who||[]).some(n => { const b=bare(n); return b.length>2 && line.indexOf(b)!==-1; }); };
+  // Whether a ruling is worth the "who does this apply to?" (decode) question.
+  // We keep it as long as at least one of the qurrāʾ/ruwāt in the answer is NOT
+  // written out in the line — i.e. there's still a رمز to decode. Only rulings
+  // whose whole answer is spelled out (pure تصريح, no decoding skill) are
+  // skipped. Erring toward redundancy: a line may name one reciter and code
+  // another, and that's still a good question.
+  const hiddenAttr = d => { const line = bare(d.bayt); const who = d.who||[];
+    if(!who.length) return false;
+    return who.some(n => { const b=bare(n); return !(b.length>2 && line.indexOf(b)!==-1); }); };
 
   // ---- question generators (by category) --------------------------------
   // Each returns { type, cat, q(html), options:[{html, correct}] }
