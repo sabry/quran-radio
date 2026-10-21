@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>الشاطبية · تتبّع الحفظ</title>
+<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-0:#0B1517; --bg-1:#0E1A1C; --panel:#132225; --panel-2:#182C30;
+    --line:rgba(201,162,75,0.22); --gold:#C9A24B; --gold-soft:rgba(201,162,75,0.30);
+    --parchment:#EDE6D6; --muted:#8FA6A3; --track:#22343a; --done:#4CAF7D;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; min-height:100dvh; direction:rtl;
+    background:radial-gradient(1200px 800px at 50% -10%, #14282B 0%, var(--bg-1) 55%, var(--bg-0) 100%);
+    color:var(--parchment); font-family:'Work Sans', system-ui, sans-serif;
+    padding:24px 16px 48px; display:flex; flex-direction:column; align-items:center;
+  }
+  .wrap{ width:100%; max-width:520px; }
+  h1{
+    font-family:'Amiri', serif; font-weight:700; text-align:center;
+    font-size:26px; margin:4px 0 2px; color:var(--parchment);
+  }
+  .sub{ text-align:center; color:var(--muted); font-size:12px; letter-spacing:0.4px; margin-bottom:18px; }
+
+  /* Overall pie */
+  .pie-card{
+    background:var(--panel); border:1px solid var(--line); border-radius:18px;
+    padding:22px; text-align:center; box-shadow:0 20px 50px -30px rgba(0,0,0,0.7);
+  }
+  .pie-wrap{ position:relative; width:190px; height:190px; margin:0 auto; }
+  .pie{ width:100%; height:100%; border-radius:50%;
+    background:conic-gradient(var(--gold) calc(var(--pct)*1%), var(--track) 0); transition:background .35s ease; }
+  .hole{ position:absolute; inset:24px; border-radius:50%; background:var(--panel);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .pct{ font-size:34px; font-weight:700; font-variant-numeric:tabular-nums; color:var(--gold); }
+  .count{ font-size:12.5px; color:var(--muted); margin-top:3px; font-variant-numeric:tabular-nums; }
+
+  /* Input */
+  .field{ margin:20px 0 6px; display:flex; align-items:center; gap:12px; justify-content:center; flex-wrap:wrap; }
+  .field label{ font-size:13px; color:var(--muted); }
+  input[type=number]{
+    width:110px; background:#0e1417; border:1px solid var(--line); border-radius:9px;
+    color:var(--parchment); font-size:16px; padding:9px 11px; text-align:center; font-variant-numeric:tabular-nums;
+  }
+  input[type=number]:focus{ outline:none; border-color:var(--gold); }
+  input[type=range]{ width:100%; margin-top:14px; accent-color:var(--gold); }
+  .cur{ text-align:center; font-family:'Amiri',serif; font-size:15px; color:var(--parchment); margin-top:10px; min-height:22px; }
+  .cur .g{ color:var(--gold); }
+
+  /* Sections + chapters */
+  .section{ margin-top:22px; }
+  .sec-head{ display:flex; align-items:baseline; justify-content:space-between; padding:0 4px 8px;
+    border-bottom:1px solid var(--line); margin-bottom:8px; }
+  .sec-title{ font-family:'Amiri',serif; font-size:19px; color:var(--gold); }
+  .sec-en{ font-size:10.5px; color:var(--muted); letter-spacing:0.5px; }
+  .sec-frac{ font-size:11.5px; color:var(--muted); font-variant-numeric:tabular-nums; }
+
+  .chap{ padding:7px 4px; border-radius:10px; }
+  .chap.current{ background:rgba(201,162,75,0.10); }
+  .chap-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .chap-name{ font-family:'Amiri',serif; font-size:16px; color:var(--parchment); }
+  .chap.done .chap-name{ color:var(--done); }
+  .chap-meta{ font-size:10.5px; color:var(--muted); font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .bar{ height:7px; border-radius:5px; background:var(--track); margin-top:5px; overflow:hidden; }
+  .bar > span{ display:block; height:100%; border-radius:5px; background:var(--gold); transition:width .3s ease; }
+  .chap.done .bar > span{ background:var(--done); }
+  .tick{ color:var(--done); }
+
+  /* Qurrāʾ map + group codes */
+  .map-card{ background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:16px 14px; }
+  .chips{ display:flex; flex-wrap:wrap; gap:7px; justify-content:center; margin-bottom:12px; }
+  .chip{ cursor:pointer; user-select:none; font-family:'Amiri',serif; font-size:16px; line-height:1;
+    padding:7px 12px 8px; border-radius:999px; border:1px solid var(--line); background:#0e1417;
+    color:var(--parchment); transition:background .15s ease,border-color .15s ease,color .15s ease; }
+  .chip small{ font-family:'Work Sans',sans-serif; font-size:9.5px; color:var(--muted); margin-inline-start:5px; }
+  .chip.on{ color:#0B1517; font-weight:700; }
+  .chip.on small{ color:rgba(11,21,23,0.65); }
+  #qmap{ width:100%; height:auto; display:block; touch-action:manipulation; }
+  .map-hint{ text-align:center; color:var(--muted); font-size:11px; margin:2px 0 12px; letter-spacing:.3px; }
+  .map-cap{ margin-top:8px; min-height:20px; text-align:center; font-family:'Amiri',serif;
+    font-size:14.5px; color:var(--parchment); line-height:1.95; }
+  .map-cap b{ font-weight:700; }
+  .map-cap .mut{ color:var(--muted); font-family:'Work Sans',sans-serif; font-size:11.5px; }
+  .nd-chip{ fill:#0e1417; stroke:var(--gold); stroke-width:1.5; }
+  .nd-letters{ font-family:'Amiri',serif; font-size:17px; }
+  .nd-letters .q{ fill:var(--gold); font-weight:700; }
+  .nd-letters .r{ fill:var(--parchment); }
+  .nd-name{ font-family:'Amiri',serif; font-size:15px; fill:var(--parchment); }
+  .nd-city{ font-family:'Work Sans',sans-serif; font-size:10.5px; fill:var(--muted); letter-spacing:.3px; }
+  .ov-label{ font-family:'Amiri',serif; font-weight:700; font-size:18px; }
+  .dim{ opacity:.35; transition:opacity .15s ease; }
+  .backlink{ display:inline-block; color:var(--gold); text-decoration:none; font-size:12.5px;
+    border:1px solid var(--line); border-radius:8px; padding:6px 12px; }
+  .backlink:hover{ border-color:var(--gold); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>حِرز الأماني — تتبّع الحفظ</h1>
+  <div class="sub">Progress through the 1173 abyāt of Ash-Shāṭibiyyah, bāb by bāb</div>
+  <div style="text-align:center;margin:2px 0 16px"><a href="shatibiyya-keys.html" class="backlink">→ رموز الشاطبية (التمارين)</a></div>
+
+  <div class="pie-card">
+    <div class="pie-wrap">
+      <div class="pie" id="pie" style="--pct:0"></div>
+      <div class="hole">
+        <div class="pct" id="pctLabel">0%</div>
+        <div class="count" id="countLabel">0 / 1173</div>
+      </div>
+    </div>
+    <div class="field">
+      <label for="value">آخر بيت حفظته</label>
+      <input type="number" id="value" min="0" max="1173" step="1" value="0" inputmode="numeric">
+    </div>
+    <input type="range" id="slider" min="0" max="1173" step="1" value="0">
+    <div class="cur" id="curChapter"></div>
+  </div>
+
+  <div id="sections"></div>
+
+  <div class="section">
+    <div class="sec-head">
+      <div><span class="sec-title">خريطة القرّاء ورموز الجماعات</span>
+        <span class="sec-en">Qurrāʾ by region · group codes</span></div>
+    </div>
+    <div class="map-card">
+      <div class="chips" id="grpChips"></div>
+      <div class="map-hint">اختر رمزًا (أو أكثر) لإبرازه · المواضع تقريبية حسب بلد كل قارئ · داخل كل عقدة حرف القارئ (ذهبي) ثم حرفا راوييه</div>
+      <svg id="qmap" viewBox="0 0 680 482" role="img" aria-label="خريطة القرّاء السبعة ورموز الجماعات">
+        <g id="qmOvals"></g>
+        <g id="qmRings"></g>
+        <g id="qmNodes"></g>
+      </svg>
+      <div class="map-cap" id="qmCap"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const TOTAL = 1173;
+  // [chapter name, firstBayt, lastBayt], grouped by section. Ranges match the
+  // app's SHAT_MAP; contiguous 1..1173.
+  const SECTIONS = [
+    { ar:'المقدمة', en:'Introduction', ch:[
+      ['خطبة الكتاب',1,94]
+    ]},
+    { ar:'أصول القراءات', en:'Principles (uṣūl)', ch:[
+      ['باب الاستعاذة',95,99],['باب البسملة',100,107],['سورة أم القرآن',108,115],['باب الإدغام الكبير',116,131],
+      ['باب إدغام الحرفين المتقاربين',132,157],['باب هاء الكناية',158,167],['باب المدّ والقصر',168,182],
+      ['باب الهمزتين من كلمة',183,201],['باب الهمزتين من كلمتين',202,213],['باب الهمز المفرد',214,225],
+      ['باب نقل حركة الهمزة',226,234],['باب وقف حمزة وهشام على الهمز',235,254],['باب الإظهار والإدغام',255,258],
+      ['ذكر ذال إذ',259,261],['ذكر دال قد',262,265],['ذكر تاء التأنيث',266,269],['ذكر لام هل وبل',270,273],
+      ['باب اتفاقهم في الإدغام',274,276],['باب حروفٍ قربت مخارجها',277,285],['باب أحكام النون الساكنة والتنوين',286,290],
+      ['باب الفتح والإمالة',291,338],['إمالة هاء التأنيث (الكسائي)',339,342],['باب مذاهبهم في الراءات',343,358],
+      ['باب اللامات',359,364],['باب الوقف على أواخر الكلم',365,375],['باب الوقف على مرسوم الخط',376,386],
+      ['باب ياءات الإضافة',387,419],['باب ياءات الزوائد',420,444]
+    ]},
+    { ar:'فرش الحروف', en:'Farsh — surah by surah', ch:[
+      ['سورة البقرة',445,545],['سورة آل عمران',546,586],['سورة النساء',587,613],['سورة المائدة',614,631],
+      ['سورة الأنعام',632,680],['سورة الأعراف',681,713],['سورة الأنفال',714,724],['سورة التوبة',725,737],
+      ['سورة يونس',738,754],['سورة هود',755,771],['سورة يوسف',772,786],['سورة الرعد',787,796],
+      ['سورة إبراهيم',797,801],['سورة الحجر',802,807],['سورة النحل',808,815],['سورة الإسراء',816,829],
+      ['سورة الكهف',830,859],['سورة مريم',860,870],['سورة طه',871,886],['سورة الأنبياء',887,892],
+      ['سورة الحج',893,902],['سورة المؤمنون',903,911],['سورة النور',912,919],['سورة الفرقان',920,926],
+      ['سورة الشعراء',927,931],['سورة النمل',932,944],['سورة القصص',945,951],['سورة العنكبوت',952,957],
+      ['من الروم إلى سبأ',958,974],['سبأ وفاطر',975,985],['سورة يس',986,992],['سورة الصافات',993,1000],
+      ['سورة ص',1001,1004],['سورة الزمر',1005,1009],['سورة غافر',1010,1014],['سورة فصّلت',1015,1017],
+      ['الشورى والزخرف والدخان',1018,1030],['الجاثية والأحقاف',1031,1037],['من محمد إلى الرحمن',1038,1051],
+      ['سورة الرحمن',1052,1058],['الواقعة والحديد',1059,1064],['من المجادلة إلى ن',1065,1077],
+      ['من ن إلى القيامة',1078,1091],['من القيامة إلى النبأ',1092,1098],['من النبأ إلى العلق',1099,1114],
+      ['من العلق إلى آخر القرآن',1115,1120]
+    ]},
+    { ar:'الخواتيم', en:'Closing', ch:[
+      ['باب التكبير',1121,1133],['باب مخارج الحروف والصفات',1134,1159],['خاتمة النظم',1160,1173]
+    ]}
+  ];
+
+  const KEY = 'shatibiyya.progress';
+  const $ = id => document.getElementById(id);
+  const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+
+  // Build the section/chapter DOM once; keep references to update on change.
+  const rows = [];
+  const secEls = [];
+  const container = $('sections');
+  SECTIONS.forEach(sec => {
+    const secDiv = document.createElement('div'); secDiv.className = 'section';
+    const head = document.createElement('div'); head.className = 'sec-head';
+    head.innerHTML = '<div><span class="sec-title">'+sec.ar+'</span> '
+      + '<span class="sec-en">'+sec.en+'</span></div><div class="sec-frac"></div>';
+    secDiv.appendChild(head);
+    const from0 = sec.ch[0][1], to0 = sec.ch[sec.ch.length-1][2];
+    const chapRefs = [];
+    sec.ch.forEach(([name, from, to]) => {
+      const total = to - from + 1;
+      const el = document.createElement('div'); el.className = 'chap';
+      el.innerHTML =
+        '<div class="chap-row"><span class="chap-name">'+name+'</span>'
+        + '<span class="chap-meta"></span></div>'
+        + '<div class="bar"><span></span></div>';
+      secDiv.appendChild(el);
+      chapRefs.push({ el, from, to, total,
+        meta: el.querySelector('.chap-meta'), fill: el.querySelector('.bar > span') });
+    });
+    container.appendChild(secDiv);
+    secEls.push({ frac: head.querySelector('.sec-frac'), from:from0, to:to0, chapRefs });
+    rows.push(...chapRefs);
+  });
+
+  function render(v){
+    v = clamp(Math.round(v)||0, 0, TOTAL);
+    // overall
+    const pct = v / TOTAL * 100;
+    $('pie').style.setProperty('--pct', pct);
+    $('pctLabel').textContent = (pct>0 && pct<10 ? pct.toFixed(1) : Math.round(pct)) + '%';
+    $('countLabel').textContent = v + ' / ' + TOTAL;
+    $('value').value = v;
+    $('slider').value = v;
+
+    // per chapter
+    let curName = null;
+    rows.forEach(c => {
+      const done = clamp(v - c.from + 1, 0, c.total);
+      const frac = done / c.total;
+      c.fill.style.width = (frac*100) + '%';
+      const complete = v >= c.to;
+      const started = v >= c.from && !complete;
+      c.el.classList.toggle('done', complete);
+      c.el.classList.toggle('current', started);
+      c.meta.innerHTML = complete
+        ? '<span class="tick">✓</span> ' + c.total
+        : done + ' / ' + c.total + '  ·  ' + c.from + '–' + c.to;
+      if(started) curName = c;
+    });
+    // section fractions
+    secEls.forEach(s => {
+      const t = s.to - s.from + 1;
+      const d = clamp(v - s.from + 1, 0, t);
+      s.frac.textContent = Math.round(d/t*100) + '%  ·  ' + d + '/' + t;
+    });
+    // current chapter caption
+    const cap = $('curChapter');
+    if(v <= 0) cap.innerHTML = 'ابدأ بإدخال آخر بيت وصلت إليه';
+    else if(v >= TOTAL) cap.innerHTML = '<span class="g">تمّ الحفظ — بارك الله فيك</span>';
+    else if(curName) cap.innerHTML = 'الآن في: <span class="g">'+curName.el.querySelector('.chap-name').textContent
+      +'</span> (البيت '+(v - curName.from + 1)+' من '+curName.total+')';
+    else cap.innerHTML = '';
+    try{ localStorage.setItem(KEY, String(v)); }catch(e){}
+  }
+
+  let start = 0;
+  try{ const s = parseInt(localStorage.getItem(KEY),10); if(s>=0 && s<=TOTAL) start = s; }catch(e){}
+  $('value').addEventListener('input', () => render(parseInt($('value').value,10)));
+  $('slider').addEventListener('input', () => render(parseInt($('slider').value,10)));
+  render(start);
+})();
+</script>
+
+<script>
+/* Interactive map of the seven qurrāʾ placed roughly by region. Each node
+   shows the qārī's أبجد letter + his two rāwīs' letters, and the collective
+   رموز are drawn as soft curves hugging their members. Rawī-based codes
+   (صحبة/صحاب) map to their qārī's node (both are Kufan). */
+(function(){
+  const NS='http://www.w3.org/2000/svg';
+  // node = qārī, positioned east→right / north→up (SVG y grows downward)
+  // ltr = [qārī letter, rāwī 1 letter, rāwī 2 letter]  (the أبجد triplet)
+  const QN = {
+    'ابن عامر': {x:114, y:104, city:'الشام',   ltr:['ك','ل','م']},
+    'عاصم':     {x:386, y:84,  city:'',        ltr:['ن','ص','ع']},
+    'حمزة':     {x:470, y:126, city:'',        ltr:['ف','ض','ق']},
+    'الكسائي':  {x:384, y:168, city:'',        ltr:['ر','س','ت']},
+    'أبو عمرو': {x:566, y:200, city:'البصرة',  ltr:['ح','ط','ي']},
+    'نافع':     {x:210, y:322, city:'المدينة', ltr:['أ','ب','ج']},
+    'ابن كثير': {x:238, y:412, city:'مكة',     ltr:['د','هـ','ز']},
+  };
+  const GR = [
+    {sym:'سما',  color:'#4CAF7D', members:['نافع','ابن كثير','أبو عمرو'],            desc:'نافع وابن كثير وأبو عمرو'},
+    {sym:'حقّ',  color:'#E8B84B', members:['ابن كثير','أبو عمرو'],                   desc:'ابن كثير وأبو عمرو'},
+    {sym:'نفر',  color:'#E0795E', members:['ابن كثير','أبو عمرو','ابن عامر'],        desc:'ابن كثير وأبو عمرو وابن عامر'},
+    {sym:'عمّ',  color:'#6CB7D6', members:['نافع','ابن عامر'],                       desc:'نافع وابن عامر'},
+    {sym:'حرمي', color:'#B98BD9', members:['نافع','ابن كثير'],                       desc:'قارئا الحرمين: نافع وابن كثير'},
+    {sym:'صحبة', color:'#5BC0B0', members:['عاصم','حمزة','الكسائي'],                 desc:'شعبة وحمزة والكسائي', note:'شعبة راوي عاصم'},
+    {sym:'صحاب', color:'#C98BB0', members:['عاصم','حمزة','الكسائي'],                 desc:'حفص وحمزة والكسائي', note:'حفص راوي عاصم'},
+    {sym:'حصن',  color:'#9CCB6A', members:['نافع','عاصم','حمزة','الكسائي'],          desc:'نافع والكوفيون'},
+    {sym:'ث',    color:'#D98B8B', members:['عاصم','حمزة','الكسائي'],                 desc:'الكوفيون'},
+    {sym:'ذ',    color:'#8BA6D9', members:['عاصم','حمزة','الكسائي','ابن عامر'],      desc:'الكوفيون والشامي'},
+    {sym:'ظ',    color:'#D9C78B', members:['عاصم','حمزة','الكسائي','ابن كثير'],      desc:'الكوفيون والمكي'},
+    {sym:'غ',    color:'#8BD9C0', members:['عاصم','حمزة','الكسائي','أبو عمرو'],      desc:'الكوفيون والبصري'},
+    {sym:'ش',    color:'#D98BD0', members:['حمزة','الكسائي'],                        desc:'حمزة والكسائي'},
+    {sym:'خ',    color:'#AAB4BD', members:['ابن كثير','أبو عمرو','ابن عامر','عاصم','حمزة','الكسائي'], desc:'الكل عدا نافع'},
+  ];
+  const el = id => document.getElementById(id);
+  const mk = (n,a) => { const e=document.createElementNS(NS,n); for(const k in a) e.setAttribute(k,a[k]); return e; };
+  const active = new Set();
+
+  // --- static layer: nodes + city labels ---
+  const gN = el('qmNodes');
+  mk && (function labels(){
+    const addCity = (x,y,t)=>{ const c=mk('text',{x,y,'text-anchor':'middle','class':'nd-city'}); c.textContent=t; gN.appendChild(c); };
+    addCity(422,56,'الكوفة');  // one label for the three Kūfans
+  })();
+  Object.keys(QN).forEach(name=>{
+    const p=QN[name];
+    const g=mk('g',{'data-node':name});
+    g.appendChild(mk('rect',{x:p.x-25,y:p.y-15,width:50,height:30,rx:10,'class':'nd-chip'}));
+    const lt=mk('text',{x:p.x,y:p.y+6,'text-anchor':'middle','class':'nd-letters'});
+    const q=mk('tspan',{'class':'q'}); q.textContent=p.ltr[0];
+    const r=mk('tspan',{'class':'r'}); r.textContent=' '+p.ltr[1]+' '+p.ltr[2];
+    lt.appendChild(q); lt.appendChild(r); g.appendChild(lt);
+    const nm=mk('text',{x:p.x,y:p.y+32,'text-anchor':'middle','class':'nd-name'}); nm.textContent=name; g.appendChild(nm);
+    if(p.city){ const ct=mk('text',{x:p.x,y:p.y-22,'text-anchor':'middle','class':'nd-city'}); ct.textContent=p.city; g.appendChild(ct); }
+    gN.appendChild(g);
+  });
+
+  // convex hull (Andrew's monotone chain)
+  function hull(ps){
+    if(ps.length<3) return ps.slice();
+    const pts=ps.slice().sort((a,b)=>a.x-b.x||a.y-b.y);
+    const cr=(o,a,b)=>(a.x-o.x)*(b.y-o.y)-(a.y-o.y)*(b.x-o.x);
+    const lo=[]; for(const p of pts){ while(lo.length>=2&&cr(lo[lo.length-2],lo[lo.length-1],p)<=0)lo.pop(); lo.push(p); }
+    const up=[]; for(let i=pts.length-1;i>=0;i--){ const p=pts[i]; while(up.length>=2&&cr(up[up.length-2],up[up.length-1],p)<=0)up.pop(); up.push(p); }
+    lo.pop(); up.pop(); return lo.concat(up);
+  }
+  // closed smooth curve through pts (Catmull-Rom → cubic Bézier)
+  function smooth(pts){
+    const n=pts.length; if(n<2) return '';
+    let d='M '+pts[0].x.toFixed(1)+' '+pts[0].y.toFixed(1)+' ';
+    for(let i=0;i<n;i++){
+      const p0=pts[(i-1+n)%n], p1=pts[i], p2=pts[(i+1)%n], p3=pts[(i+2)%n];
+      const c1x=p1.x+(p2.x-p0.x)/6, c1y=p1.y+(p2.y-p0.y)/6;
+      const c2x=p2.x-(p3.x-p1.x)/6, c2y=p2.y-(p3.y-p1.y)/6;
+      d+='C '+c1x.toFixed(1)+' '+c1y.toFixed(1)+' '+c2x.toFixed(1)+' '+c2y.toFixed(1)+' '+p2.x.toFixed(1)+' '+p2.y.toFixed(1)+' ';
+    }
+    return d+'Z';
+  }
+  // soft padded outline hugging the member nodes (Minkowski sum with a disk,
+  // approximated by sampling a circle around each node then taking the hull)
+  function blob(members, pad){
+    const C=members.map(m=>QN[m]).filter(Boolean), S=[], K=18;
+    C.forEach(p=>{ for(let i=0;i<K;i++){ const a=2*Math.PI*i/K; S.push({x:p.x+pad*Math.cos(a), y:p.y+pad*Math.sin(a)}); } });
+    const h=hull(S);
+    return { d:smooth(h), cx:C.reduce((s,p)=>s+p.x,0)/C.length, topY:Math.min.apply(null,h.map(p=>p.y)) };
+  }
+
+  function redraw(){
+    const ov=el('qmOvals'), rg=el('qmRings'); ov.textContent=''; rg.textContent='';
+    const act=GR.filter(g=>active.has(g.sym));
+    // membership → which active groups each node belongs to
+    const memberOf={};
+    act.forEach(g=>g.members.forEach(m=>{ (memberOf[m]=memberOf[m]||[]).push(g); }));
+    // dim non-members
+    gN.querySelectorAll('[data-node]').forEach(c=>{
+      const nm=c.getAttribute('data-node');
+      c.classList.toggle('dim', act.length>0 && !memberOf[nm]);
+    });
+    // soft curves hugging each active group's members
+    act.forEach(g=>{
+      const b=blob(g.members, 46);
+      ov.appendChild(mk('path',{d:b.d, fill:g.color,'fill-opacity':0.12, stroke:g.color,
+        'stroke-width':2,'stroke-dasharray':'6 4','stroke-opacity':0.85,'stroke-linejoin':'round'}));
+      const t=mk('text',{x:b.cx,y:b.topY-8,'text-anchor':'middle','class':'ov-label',fill:g.color}); t.textContent=g.sym;
+      ov.appendChild(t);
+    });
+    // highlight member nodes with a rounded outline (stacked for several groups)
+    Object.keys(memberOf).forEach(nm=>{
+      const p=QN[nm]; memberOf[nm].forEach((g,i)=>{
+        const pad=6+i*5;
+        rg.appendChild(mk('rect',{x:p.x-25-pad,y:p.y-15-pad,width:50+2*pad,height:30+2*pad,rx:10+pad,
+          fill:'none',stroke:g.color,'stroke-width':2.5,'stroke-opacity':0.9}));
+      });
+    });
+    // caption
+    const cap=el('qmCap');
+    if(!act.length){ cap.innerHTML='<span class="mut">لم يُختَر رمز بعد</span>'; return; }
+    cap.innerHTML = act.map(g=>'<span style="color:'+g.color+'">●</span> <b>«'+g.sym+'»</b> = '+g.desc
+      + (g.note?' <span class="mut">('+g.note+')</span>':'')).join('<br>');
+  }
+
+  // --- chips ---
+  const chips=el('grpChips');
+  GR.forEach(g=>{
+    const b=document.createElement('div'); b.className='chip'; b.dataset.sym=g.sym;
+    b.innerHTML = g.sym + '<small>'+g.members.length+'</small>';
+    b.onclick=()=>{
+      if(active.has(g.sym)){ active.delete(g.sym); b.classList.remove('on'); b.style.background=''; b.style.borderColor=''; }
+      else { active.add(g.sym); b.classList.add('on'); b.style.background=g.color; b.style.borderColor=g.color; }
+      redraw();
+    };
+    chips.appendChild(b);
+  });
+  // default: two clean, non-overlapping pairs to show the idea
+  ['حقّ','عمّ'].forEach(s=>{ const b=chips.querySelector('[data-sym="'+s+'"]'); if(b) b.click(); });
+})();
+</script>
+</body>
+</html>

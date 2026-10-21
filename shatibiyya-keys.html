@@ -77,6 +77,9 @@
   th{ color:var(--gold); font-size:12px; }
   td.s{ color:var(--gold); font-weight:700; }
   .ref h3{ color:var(--gold); font-family:'Amiri',serif; margin:16px 0 6px; font-size:16px; }
+  .reftoggle a{ display:inline-block; margin-inline-start:10px; color:var(--gold); text-decoration:none;
+    font-size:12.5px; border:1px solid var(--line); border-radius:8px; padding:7px 11px; }
+  .reftoggle a:hover{ border-color:var(--gold); }
 </style>
 </head>
 <body>
@@ -100,7 +103,7 @@
     <button class="next" id="next" hidden>التالي ←</button>
   </div>
 
-  <div class="reftoggle"><button id="refbtn">إظهار جدول الرموز ▾</button></div>
+  <div class="reftoggle"><button id="refbtn">إظهار جدول الرموز ▾</button><a href="progress-pie.html">خريطة القرّاء وتتبّع الحفظ ↗</a></div>
   <div class="ref" id="ref"></div>
 </div>
 
@@ -111,19 +114,19 @@
   // then his two rāwīs (نافع=أ، قالون=ب، ورش=ج …).
   const QURRA = [
     { name:'نافع',     full:'نافع بن عبد الرحمن', city:'المدينة',     nick:'المدني',  sym:'أ', group:'أبج',
-      rawis:[{name:'قالون', sym:'ب'}, {name:'ورش', sym:'ج'}] },
+      rawis:[{name:'قالون', sym:'ب', full:'عيسى بن مِينا المدني (أبو موسى)'}, {name:'ورش', sym:'ج', full:'عثمان بن سعيد المصري (أبو سعيد)'}] },
     { name:'ابن كثير', full:'عبد الله بن كثير',   city:'مكة',         nick:'المكي',   sym:'د', group:'دهز',
-      rawis:[{name:'البزّي', sym:'هـ'}, {name:'قنبل', sym:'ز'}] },
+      rawis:[{name:'البزّي', sym:'هـ', full:'أحمد بن محمد البَزّي المكّي (أبو الحسن)'}, {name:'قنبل', sym:'ز', full:'محمد بن عبد الرحمن المخزومي المكّي (أبو عمر)'}] },
     { name:'أبو عمرو', full:'زبّان بن العلاء',    city:'البصرة',      nick:'البصري',  sym:'ح', group:'حطي',
-      rawis:[{name:'الدوري', sym:'ط', of:'أبي عمرو'}, {name:'السوسي', sym:'ي'}] },
+      rawis:[{name:'الدوري', sym:'ط', of:'أبي عمرو', full:'حفص بن عمر الدُّوري (أبو عمر)'}, {name:'السوسي', sym:'ي', full:'صالح بن زياد السُّوسي (أبو شعيب)'}] },
     { name:'ابن عامر', full:'عبد الله بن عامر',   city:'الشام (دمشق)', nick:'اليحصبي', sym:'ك', group:'كلم',
-      rawis:[{name:'هشام', sym:'ل'}, {name:'ابن ذكوان', sym:'م'}] },
+      rawis:[{name:'هشام', sym:'ل', full:'هشام بن عمّار الدمشقي (أبو الوليد)'}, {name:'ابن ذكوان', sym:'م', full:'عبد الله بن أحمد بن ذكوان الدمشقي (أبو عمرو)'}] },
     { name:'عاصم',     full:'عاصم بن أبي النجود',  city:'الكوفة',      nick:'الكوفي',  sym:'ن', group:'نصع',
-      rawis:[{name:'شعبة', sym:'ص'}, {name:'حفص', sym:'ع'}] },
+      rawis:[{name:'شعبة', sym:'ص', full:'شعبة بن عيّاش الأسدي الكوفي (أبو بكر)'}, {name:'حفص', sym:'ع', full:'حفص بن سليمان الأسدي الكوفي (أبو عمر)'}] },
     { name:'حمزة',     full:'حمزة بن حبيب الزيّات', city:'الكوفة',      nick:'الزيّات', sym:'ف', group:'فضق',
-      rawis:[{name:'خلف', sym:'ض', of:'حمزة'}, {name:'خلاد', sym:'ق'}] },
+      rawis:[{name:'خلف', sym:'ض', of:'حمزة', full:'خلف بن هشام البزّار البغدادي (أبو محمد)'}, {name:'خلاد', sym:'ق', full:'خلّاد بن خالد الشيباني الكوفي (أبو عيسى)'}] },
     { name:'الكسائي',  full:'علي بن حمزة',        city:'الكوفة',      nick:'الكسائي', sym:'ر', group:'رست',
-      rawis:[{name:'أبو الحارث', sym:'س'}, {name:'الدوري', sym:'ت', of:'الكسائي'}] },
+      rawis:[{name:'أبو الحارث', sym:'س', full:'الليث بن خالد البغدادي (أبو الحارث)'}, {name:'الدوري', sym:'ت', of:'الكسائي', full:'حفص بن عمر الدُّوري (أبو عمر)'}] },
   ];
   // The eight collective word-symbols (verified against standard references),
   // plus the well-known named group الكوفيون.
@@ -396,6 +399,9 @@
       +'<td class="s">'+q.group+'</td></tr>'; });
     h+='</table><h3>الأسماء والألقاب والبلدان</h3><table><tr><th>القارئ</th><th>الاسم</th><th>البلد</th><th>اللقب</th></tr>';
     QURRA.forEach(q=>{ h+='<tr><td>'+q.name+'</td><td>'+q.full+'</td><td>'+q.city+'</td><td>'+q.nick+'</td></tr>'; });
+    h+='</table><h3>رواة القرّاء بأسمائهم الكاملة</h3><table><tr><th>القارئ</th><th>الراوي</th><th>الرمز</th><th>الاسم الكامل</th></tr>';
+    QURRA.forEach(q=>{ q.rawis.forEach((r,i)=>{ h+='<tr>'+(i===0?'<td rowspan="2">'+q.name+'</td>':'')
+      +'<td>'+(r.of?r.name+' (عن '+r.of+')':r.name)+'</td><td class="s">'+r.sym+'</td><td>'+(r.full||'')+'</td></tr>'; }); });
     h+='</table><h3>الرموز الجماعية</h3><table><tr><th>الرمز</th><th>القرّاء</th></tr>';
     GROUPS.forEach(g=>{ h+='<tr><td class="s">'+g.sym+'</td><td>'+g.members.join('، ')+'</td></tr>'; });
     h+='</table><h3>أبيات الشاطبية — الأحكام والرموز</h3><table><tr><th>البيت</th><th>الحكم</th><th>على مَن</th></tr>';
