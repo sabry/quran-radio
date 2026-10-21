@@ -284,8 +284,8 @@
     {sym:'نفر',  color:'#E0795E', members:['ابن كثير','أبو عمرو','ابن عامر'],        desc:'ابن كثير وأبو عمرو وابن عامر'},
     {sym:'عمّ',  color:'#6CB7D6', members:['نافع','ابن عامر'],                       desc:'نافع وابن عامر'},
     {sym:'حرمي', color:'#B98BD9', members:['نافع','ابن كثير'],                       desc:'قارئا الحرمين: نافع وابن كثير'},
-    {sym:'صحبة', color:'#5BC0B0', members:['عاصم','حمزة','الكسائي'],                 desc:'شعبة وحمزة والكسائي', note:'شعبة راوي عاصم'},
-    {sym:'صحاب', color:'#C98BB0', members:['عاصم','حمزة','الكسائي'],                 desc:'حفص وحمزة والكسائي', note:'حفص راوي عاصم'},
+    {sym:'صحبة', color:'#5BC0B0', members:['شعبة','حمزة','الكسائي'],                 desc:'شعبة وحمزة والكسائي', note:'شعبة راوي عاصم'},
+    {sym:'صحاب', color:'#C98BB0', members:['حفص','حمزة','الكسائي'],                  desc:'حفص وحمزة والكسائي', note:'حفص راوي عاصم'},
     {sym:'حصن',  color:'#9CCB6A', members:['نافع','عاصم','حمزة','الكسائي'],          desc:'نافع والكوفيون'},
     {sym:'ث',    color:'#D98B8B', members:['عاصم','حمزة','الكسائي'],                 desc:'الكوفيون'},
     {sym:'ذ',    color:'#8BA6D9', members:['عاصم','حمزة','الكسائي','ابن عامر'],      desc:'الكوفيون والشامي'},
@@ -317,6 +317,12 @@
     gN.appendChild(g);
   });
 
+  // عاصم's two rāwīs as distinct points, so صحبة (شعبة) and صحاب (حفص) trace
+  // different curves instead of collapsing onto the same عاصم node.
+  const RW = { 'شعبة':{x:330,y:70,letter:'ص'}, 'حفص':{x:330,y:110,letter:'ع'} };
+  const RAWI_QARI = { 'شعبة':'عاصم', 'حفص':'عاصم' };
+  const POS = m => QN[m] || RW[m];
+
   // convex hull (Andrew's monotone chain)
   function hull(ps){
     if(ps.length<3) return ps.slice();
@@ -341,7 +347,7 @@
   // soft padded outline hugging the member nodes (Minkowski sum with a disk,
   // approximated by sampling a circle around each node then taking the hull)
   function blob(members, pad){
-    const C=members.map(m=>QN[m]).filter(Boolean), S=[], K=18;
+    const C=members.map(m=>POS(m)).filter(Boolean), S=[], K=18;
     C.forEach(p=>{ for(let i=0;i<K;i++){ const a=2*Math.PI*i/K; S.push({x:p.x+pad*Math.cos(a), y:p.y+pad*Math.sin(a)}); } });
     const h=hull(S);
     return { d:smooth(h), cx:C.reduce((s,p)=>s+p.x,0)/C.length, topY:Math.min.apply(null,h.map(p=>p.y)) };
@@ -353,10 +359,12 @@
     // membership → which active groups each node belongs to
     const memberOf={};
     act.forEach(g=>g.members.forEach(m=>{ (memberOf[m]=memberOf[m]||[]).push(g); }));
-    // dim non-members
+    // a qārī node counts as active if it or one of its rāwīs is a member
+    const activeQari=new Set();
+    act.forEach(g=>g.members.forEach(m=>activeQari.add(RAWI_QARI[m]||m)));
     gN.querySelectorAll('[data-node]').forEach(c=>{
       const nm=c.getAttribute('data-node');
-      c.classList.toggle('dim', act.length>0 && !memberOf[nm]);
+      c.classList.toggle('dim', act.length>0 && !activeQari.has(nm));
     });
     // soft curves hugging each active group's members
     act.forEach(g=>{
@@ -366,13 +374,20 @@
       const t=mk('text',{x:b.cx,y:b.topY-8,'text-anchor':'middle','class':'ov-label',fill:g.color}); t.textContent=g.sym;
       ov.appendChild(t);
     });
-    // highlight member nodes with a rounded outline (stacked for several groups)
+    // highlight members: rounded outline on qārī pills, small marker on rāwī points
     Object.keys(memberOf).forEach(nm=>{
-      const p=QN[nm]; memberOf[nm].forEach((g,i)=>{
-        const pad=6+i*5;
-        rg.appendChild(mk('rect',{x:p.x-25-pad,y:p.y-15-pad,width:50+2*pad,height:30+2*pad,rx:10+pad,
-          fill:'none',stroke:g.color,'stroke-width':2.5,'stroke-opacity':0.9}));
-      });
+      const p=POS(nm); if(!p) return; const groups=memberOf[nm];
+      if(QN[nm]){
+        groups.forEach((g,i)=>{ const pad=6+i*5;
+          rg.appendChild(mk('rect',{x:p.x-25-pad,y:p.y-15-pad,width:50+2*pad,height:30+2*pad,rx:10+pad,
+            fill:'none',stroke:g.color,'stroke-width':2.5,'stroke-opacity':0.9})); });
+      } else {                       // عاصم's rāwī (شعبة / حفص) as a small satellite
+        const g=groups[0];
+        rg.appendChild(mk('circle',{cx:p.x,cy:p.y,r:11,fill:'#0e1417',stroke:g.color,'stroke-width':2.5}));
+        const lr=mk('text',{x:p.x,y:p.y+4,'text-anchor':'middle',
+          style:'font-family:Amiri,serif;font-size:13px;font-weight:700;fill:'+g.color}); lr.textContent=p.letter; rg.appendChild(lr);
+        const nl=mk('text',{x:p.x,y:p.y+23,'text-anchor':'middle','class':'nd-city'}); nl.textContent=nm; rg.appendChild(nl);
+      }
     });
     // caption
     const cap=el('qmCap');
