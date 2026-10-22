@@ -43,6 +43,14 @@
   a.back{color:var(--accent);text-decoration:none;font-size:.95rem}
   code{background:var(--bg2);border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:.85em}
   .status{min-height:1.2em;color:var(--muted);font-size:.88rem;margin:2px 0 0}
+  button.on{background:var(--accent);color:#05140d;border-color:var(--accent)}
+  .erow{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:8px}
+  .erow+.erow{margin-top:2px}
+  .erow.act{background:#15262e}
+  .erow .sym{font-family:Amiri,serif;font-weight:800;font-size:1.2rem;min-width:48px;text-align:center}
+  .erow .t{font-family:ui-monospace,monospace;font-size:.82rem;color:#bfe0d6;min-width:56px;text-align:center}
+  .erow button{padding:3px 11px;font-size:.9rem;border-radius:7px}
+  .erow .here{color:var(--gold);border-color:#3a4a2a}
 </style>
 </head>
 <body>
@@ -51,11 +59,12 @@
   <h1>فيلم الرموز</h1>
   <p class="sub">بابُ رموز القرّاء من حِرز الأماني (الأبيات ٤٩–٥٥) — تومِض كل علامةٍ على القرّاء الذين تدلّ عليهم لحظةَ ذِكرها في التلاوة، ثم تختفي.</p>
 
-  <div class="stage"><canvas id="cv" width="1360" height="1220"></canvas></div>
+  <div class="stage"><canvas id="cv" width="1360" height="1320"></canvas></div>
 
   <div class="bar">
     <button id="play" class="primary">▶ تشغيل</button>
     <button id="restart">⟲ من البداية</button>
+    <button id="slow">½×</button>
     <button id="rec" class="rec">⏺ تسجيل فيديو</button>
     <a id="dl" class="dl" download="shatibiyya-romooz.webm">⬇ احفظ الفيديو</a>
   </div>
@@ -64,12 +73,28 @@
   <div class="cal">
     <label>بداية الرموز (ث): <input id="cStart" type="number" step="1" min="0"></label>
     <label>مدّة البيت (ث): <input id="cPer" type="number" step="0.1" min="1"></label>
+    <button id="edBtn" style="padding:5px 12px;font-size:.88rem">✎ ضبط دقيق</button>
     <button id="capBtn" style="padding:5px 12px;font-size:.88rem">⏱ التقاط التوقيت</button>
     <button id="calReset" style="padding:5px 10px;font-size:.85rem">إعادة الضبط</button>
   </div>
   <textarea id="capOut" readonly style="display:none;width:100%;height:70px;margin-top:8px;
     background:#0b1418;color:#bfe0d6;border:1px solid #28383d;border-radius:8px;
     font-family:ui-monospace,monospace;font-size:.78rem;padding:8px;direction:ltr"></textarea>
+
+  <div id="editor" style="display:none;margin-top:10px;border:1px solid #28383d;border-radius:12px;padding:12px;background:#0b1317">
+    <div style="color:#9fb3b0;font-size:.86rem;line-height:1.6;margin-bottom:10px">
+      شغِّل الفيلم بسرعة <b style="color:#d9e6e2">½×</b>، واضبط كل رمز: زرّ <b style="color:#d9e6e2">الآن</b>
+      يجعل لحظة الرمز = الزمن الحالي، و<b style="color:#d9e6e2">−/+</b> يُزيحه ٠٫١ث. يُحفَظ فورًا.
+    </div>
+    <div id="edRows"></div>
+    <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <button id="edCopy" style="padding:6px 14px;font-size:.86rem">نسخ التوقيت لإرساله</button>
+      <span id="edNow" style="color:#7d9490;font-size:.84rem;font-family:ui-monospace,monospace"></span>
+    </div>
+    <textarea id="edOut" readonly style="display:none;width:100%;height:66px;margin-top:8px;
+      background:#0b1418;color:#bfe0d6;border:1px solid #28383d;border-radius:8px;
+      font-family:ui-monospace,monospace;font-size:.76rem;padding:8px;direction:ltr"></textarea>
+  </div>
 
   <p class="note">
     <b>المزامنة:</b> للمزامنة الدقيقة اضغط <b>⏱ التقاط التوقيت</b>، ثم اضغط مفتاح
@@ -95,26 +120,26 @@ const LOCAL_AUDIO  = './shatibiyya-matn.mp3';   // optional same-origin copy →
 
 // ---- timing ------------------------------------------------------------
 // The رموز section follows a long introduction; the verses begin ~7:40.
-const DEF_START = 460;    // seconds: first code (ث, بيت 49) recited around here
+const DEF_START = 460;    // seconds: open at the start of بيت 49 (no tail of بيت 48)
 const DEF_PER   = 8;      // rough seconds/bayt — only seeds the estimate before calibration
-const FLASHDUR  = 2.2;    // how long each group flashes on the map
+const FLASHDUR  = 2.2;    // fallback flash length for the estimate
 const N = 7;              // abyat 49..55
-const TAIL = 2.0;
+const TAIL = 0.6;         // trailing audio after حصن
 
 let START = +(localStorage.getItem('film_start') || DEF_START);
 let PER   = +(localStorage.getItem('film_per')   || DEF_PER);
 
 // ---- map geometry (identical to progress-pie.html) ---------------------
 const QN = {
-  'ابن عامر':{x:114,y:104,city:'الشام',  ltr:['ك','ل','م']},
-  'عاصم':    {x:386,y:84, city:'',        ltr:['ن','ص','ع']},
-  'حمزة':    {x:470,y:126,city:'',        ltr:['ف','ض','ق']},
-  'الكسائي': {x:384,y:168,city:'',        ltr:['ر','س','ت']},
-  'أبو عمرو':{x:566,y:200,city:'البصرة', ltr:['ح','ط','ي']},
-  'نافع':    {x:210,y:322,city:'المدينة',ltr:['أ','ب','ج']},
-  'ابن كثير':{x:238,y:412,city:'مكة',    ltr:['د','هـ','ز']},
+  'ابن عامر':{x:114,y:122,city:'الشام',  ltr:['ك','ل','م']},
+  'عاصم':    {x:386,y:102,city:'',        ltr:['ن','ص','ع']},
+  'حمزة':    {x:470,y:144,city:'',        ltr:['ف','ض','ق']},
+  'الكسائي': {x:384,y:186,city:'',        ltr:['ر','س','ت']},
+  'أبو عمرو':{x:566,y:218,city:'البصرة', ltr:['ح','ط','ي']},
+  'نافع':    {x:210,y:340,city:'المدينة',ltr:['أ','ب','ج']},
+  'ابن كثير':{x:238,y:430,city:'مكة',    ltr:['د','هـ','ز']},
 };
-const RW = { 'شعبة':{x:330,y:70,letter:'ص'}, 'حفص':{x:330,y:110,letter:'ع'} };
+const RW = { 'شعبة':{x:330,y:88,letter:'ص'}, 'حفص':{x:330,y:128,letter:'ع'} };
 const RAWI_QARI = { 'شعبة':'عاصم', 'حفص':'عاصم' };
 const POS = m => QN[m] || RW[m];
 
@@ -164,28 +189,77 @@ const CODESEQ=[
   {sym:'حقّ', n:54,f:0.32},{sym:'نفر', n:54,f:0.72},
   {sym:'حرمي',n:55,f:0.30},{sym:'حصن', n:55,f:0.72},
 ];
-let FLASHES=[], BAYTWIN={};
+// Measured timings against Mahmud Haleem's recitation. Captured one code late
+// (ث wasn't tapped), so taps were shifted back onto their true code; ث alone is
+// estimated (~4s before خ, from the within-bayt cadence) and حرمي pulled ~1s
+// earlier per the noted late tap. Aligned index-for-index with CODESEQ.
+const TIMES=[
+  {t0:462.20,t1:464.38},  // ث    (estimated: not tapped; placed ~2s before خ)
+  {t0:464.38,t1:472.65},  // خ
+  {t0:472.65,t1:477.10},  // ذ
+  {t0:477.10,t1:481.33},  // ظ
+  {t0:481.33,t1:485.72},  // غ
+  {t0:485.72,t1:490.18},  // ش
+  {t0:490.18,t1:494.30},  // صحبة
+  {t0:494.30,t1:497.26},  // صحاب
+  {t0:497.26,t1:500.06},  // عمّ
+  {t0:499.40,t1:504.49},  // سما   (a touch earlier)
+  {t0:504.49,t1:508.05},  // حقّ
+  {t0:508.05,t1:511.70},  // نفر
+  {t0:511.70,t1:516.28},  // حرمي  (−1s per the late tap)
+  {t0:516.28,t1:520.00},  // حصن
+];
+let FLASHES=[], BAYTWIN={}, T0=[];
 let capturing=false, capIdx=0, capRec=[];
-function buildFlashes(){
-  const saved=JSON.parse(localStorage.getItem('film_times')||'null');
-  FLASHES=CODESEQ.map((c,i)=>{
-    if(saved && saved[i] && saved[i].t0!=null)
-      return {sym:c.sym,n:c.n,t0:saved[i].t0,t1:saved[i].t1!=null?saved[i].t1:saved[i].t0+FLASHDUR};
-    const k=c.n-49, bs=START+k*PER, t0=bs+c.f*PER;
-    return {sym:c.sym,n:c.n,t0,t1:t0+FLASHDUR};
+const LAST_HOLD=3.7;      // حصن's length (no "next code" to bound it)
+function buildT0(){       // 14 start times: saved → measured → estimate
+  const saved=JSON.parse(localStorage.getItem('film_times3')||'null');
+  T0=CODESEQ.map((c,i)=>{
+    if(saved&&saved[i]&&saved[i].t0!=null) return saved[i].t0;
+    if(TIMES[i]&&TIMES[i].t0!=null) return TIMES[i].t0;
+    const k=c.n-49; return START+k*PER+c.f*PER;
   });
+}
+let VSEG=[];
+function buildFlashes(){
+  buildT0();
+  FLASHES=CODESEQ.map((c,i)=>({sym:c.sym,n:c.n,
+    t0:T0[i], t1:(i<CODESEQ.length-1)?T0[i+1]:T0[i]+LAST_HOLD}));  // each flash ends where the next begins
   BAYTWIN={};
   FLASHES.forEach(f=>{ const w=BAYTWIN[f.n]=BAYTWIN[f.n]||{a:1e9,b:-1e9};
     w.a=Math.min(w.a,f.t0); w.b=Math.max(w.b,f.t1); });
+  // verse text switches at the (estimated) bayt boundary — midway between the last
+  // code of one bayt and the first of the next — not at the first code, so the
+  // displayed verse tracks the recitation even when a bayt's code is in its 2nd shatr.
+  const byFirst={}, byLast={};
+  FLASHES.forEach(f=>{ byFirst[f.n]=byFirst[f.n]==null?f.t0:Math.min(byFirst[f.n],f.t0);
+                       byLast[f.n] =byLast[f.n] ==null?f.t0:Math.max(byLast[f.n], f.t0); });
+  const ns=[49,50,51,52,53,54,55];
+  VSEG=ns.map((n,i)=>({ n, a: i===0 ? Math.min(START, byFirst[49]-1.8)
+                                    : (byLast[ns[i-1]]+byFirst[n])/2 }));
+}
+function verseAt(t){ let n=null; for(const s of VSEG){ if(t>=s.a) n=s.n; else break; } return n; }
+function vsegBounds(n){ const i=VSEG.findIndex(s=>s.n===n); if(i<0) return null;
+  return { a:VSEG[i].a, b: i<VSEG.length-1 ? VSEG[i+1].a : lastT()+TAIL }; }
+function saveT0(){ localStorage.setItem('film_times3',
+  JSON.stringify(T0.map((t,i)=>({sym:CODESEQ[i].sym,t0:+t.toFixed(2)})))); }
+function setT0(i,val){                    // keep order, min 0.2s between neighbours
+  let v=Math.max(0,val);
+  if(i>0) v=Math.max(v, T0[i-1]+0.2);
+  if(i<T0.length-1) v=Math.min(v, T0[i+1]-0.2);
+  T0[i]=+v.toFixed(2); buildFlashes(); saveT0();
+  if(typeof refreshEditor==='function') refreshEditor();
+  if(!playing) drawFrame(now());
 }
 const firstT=()=>FLASHES.length?Math.min.apply(null,FLASHES.map(f=>f.t0)):START;
 const lastT =()=>FLASHES.length?Math.max.apply(null,FLASHES.map(f=>f.t1)):START+N*PER;
-// flash envelope: quick in, shimmer, quick out
+// flash envelope: fixed-duration snap-in / fade-out (crisp regardless of window
+// length), with a gentle shimmer while held.
 function envelope(t,t0,t1){
   if(t<=t0||t>=t1) return 0;
-  const u=(t-t0)/(t1-t0);
-  let a = u<0.15 ? u/0.15 : u>0.78 ? (1-u)/0.22 : 1;
-  const shimmer=0.72+0.28*Math.abs(Math.sin(u*Math.PI*3));
+  const d=t1-t0, IN=Math.min(0.35,d*0.4), OUT=Math.min(0.6,d*0.4);
+  let a = (t<t0+IN)?(t-t0)/IN : (t>t1-OUT)?(t1-t)/OUT : 1;
+  const shimmer=0.80+0.20*Math.abs(Math.sin((t-t0)/d*Math.PI*3));
   return Math.max(0,Math.min(1,a))*shimmer;
 }
 
@@ -219,7 +293,7 @@ function blob(members,pad){
 }
 
 // ---- canvas setup ------------------------------------------------------
-const CW=680, CH=610, S=2;                 // design units × scale
+const CW=680, CH=660, S=2;                 // design units × scale
 const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
 const AR=['٠','١','٢','٣','٤','٥','٦','٧','٨','٩'];
 const ar = n => String(n).split('').map(c=>AR[+c]||c).join('');
@@ -246,11 +320,11 @@ function drawNode(name,dim){
     ctx.fillStyle= i===0 ? '#e8c66a' : '#d9e6e2';
     ctx.textAlign='center'; ctx.fillText(c,cx,p.y+1);
     xr -= w+gap; });
-  // name below
+  // name below — clear of the member-ring outline
   ctx.font='400 12px Amiri, serif'; ctx.fillStyle=dim?'#6f8681':'#cfe0dc';
-  ctx.textAlign='center'; ctx.fillText(name,p.x,p.y+27);
+  ctx.textAlign='center'; ctx.fillText(name,p.x,p.y+35);
   if(p.city){ ctx.font='400 11px Amiri, serif'; ctx.fillStyle='#7d9490';
-    ctx.fillText(p.city,p.x,p.y-24); }
+    ctx.fillText(p.city,p.x,p.y-25); }
   ctx.restore();
 }
 
@@ -280,61 +354,46 @@ function drawRings(vis){
   vis.forEach(c=>GM[c.sym].forEach(m=>{ if(QN[m]){ (memberOf[m]=memberOf[m]||[]).push(c); } }));
   ctx.save();
   Object.keys(memberOf).forEach(m=>{ const q=QN[m];
-    memberOf[m].forEach((c,i)=>{ const pad=6+i*5;
+    memberOf[m].forEach((c,i)=>{ const pad=5+i*5;
       rr(q.x-25-pad,q.y-15-pad,50+2*pad,30+2*pad,10+pad);
       ctx.globalAlpha=c.a*0.9; ctx.lineWidth=2.5; ctx.strokeStyle=GC[c.sym]; ctx.stroke(); });
   });
   ctx.restore();
 }
-// symbol labels anchored to each curve's own top vertex, with vertical de-collision + halo
+// the ramz itself — a bold boxed badge above each curve, deliberately larger and
+// distinct from the node letters/names so the code reads as the headline.
 function drawLabels(vis){
   const labs=vis.map(c=>{ const b=blob(GM[c.sym],46);
-    return {sym:c.sym,col:GC[c.sym],a:c.a,x:b.tx,y:Math.max(b.ty-12,56)}; });
+    return {sym:c.sym,col:GC[c.sym],a:c.a,x:b.tx,y:Math.max(b.ty-20,58)}; });
   labs.sort((p,q)=>p.y-q.y);
   for(let i=0;i<labs.length;i++) for(let j=0;j<i;j++)
-    if(Math.abs(labs[i].x-labs[j].x)<52 && Math.abs(labs[i].y-labs[j].y)<20) labs[i].y=labs[j].y-20;
-  ctx.save(); ctx.textAlign='center'; ctx.textBaseline='alphabetic';
-  ctx.font='700 22px Amiri, serif'; ctx.lineJoin='round';
-  labs.forEach(l=>{ ctx.globalAlpha=l.a;
-    ctx.lineWidth=3.5; ctx.strokeStyle='rgba(8,14,16,.9)'; ctx.strokeText(l.sym,l.x,l.y);
-    ctx.fillStyle=l.col; ctx.fillText(l.sym,l.x,l.y); });
+    if(Math.abs(labs[i].x-labs[j].x)<80 && Math.abs(labs[i].y-labs[j].y)<44) labs[i].y=labs[j].y-44;
+  ctx.save(); ctx.textAlign='center'; ctx.textBaseline='middle';
+  labs.forEach(l=>{
+    ctx.globalAlpha=l.a;
+    ctx.font='800 31px "Amiri", serif';
+    const tw=ctx.measureText(l.sym).width, w=tw+30, h=42;
+    let x=l.x; x=Math.max(w/2+4, Math.min(CW-w/2-4, x));   // keep badge on-canvas
+    rr(x-w/2, l.y-h/2, w, h, 13);
+    ctx.fillStyle='rgba(9,15,17,0.9)'; ctx.fill();
+    ctx.lineWidth=2.6; ctx.strokeStyle=l.col; ctx.stroke();
+    // soft colour glow + fill
+    ctx.shadowColor=l.col; ctx.shadowBlur=10;
+    ctx.fillStyle=l.col; ctx.fillText(l.sym, x, l.y+1);
+    ctx.shadowBlur=0;
+  });
   ctx.restore();
 }
 
-function drawCaption(n, ca, actSyms){
+// current bayt as a single auto-fitted line, placed under the bottom header
+function drawVerseLine(n, ca){
   const by=NTEXT[n]; if(!by) return;
-  const y0=498;
+  const line=by.s+'   ٭   '+by.a;
+  let fs=17; ctx.font='700 '+fs+'px Amiri, serif';
+  while(ctx.measureText(line).width>CW-48 && fs>11){ fs--; ctx.font='700 '+fs+'px Amiri, serif'; }
   ctx.save(); ctx.globalAlpha=ca; ctx.textAlign='center'; ctx.textBaseline='middle';
-  // bayt number pill
-  ctx.font='700 15px Amiri, serif';
-  const label='البيت '+ar(by.n);
-  const lw=ctx.measureText(label).width+24;
-  rr(CW/2-lw/2,y0-30,lw,24,12); ctx.fillStyle='#17303a'; ctx.fill();
-  ctx.lineWidth=1; ctx.strokeStyle='#2c4a54'; ctx.stroke();
-  ctx.fillStyle='#bfe0d6'; ctx.fillText(label,CW/2,y0-17);
-  // the two shatrs
-  ctx.font='700 25px Amiri, serif'; ctx.fillStyle='#f2f7f5';
-  ctx.fillText(by.s,CW/2,y0+12);
-  ctx.fillText(by.a,CW/2,y0+46);
+  ctx.fillStyle='#f4f8f6'; ctx.fillText(line, CW/2, 596);
   ctx.restore();
-
-  // active-code chips row
-  const act=actSyms||[];
-  if(act.length){
-    ctx.save(); ctx.globalAlpha=ca; ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.font='700 15px Amiri, serif';
-    const chips=act.map(sym=>({sym,txt:sym+' · '+GD[sym],c:GC[sym]}));
-    const pad=11, gap=10, h=26;
-    const ws=chips.map(ch=>ctx.measureText(ch.txt).width+pad*2);
-    let total=ws.reduce((s,w)=>s+w,0)+gap*(chips.length-1);
-    let x=CW/2+total/2;           // RTL: start from the right
-    chips.forEach((ch,i)=>{ const w=ws[i];
-      rr(x-w,y0+62,w,h,13); ctx.fillStyle='#101c22'; ctx.fill();
-      ctx.lineWidth=1.4; ctx.strokeStyle=ch.c; ctx.stroke();
-      ctx.fillStyle=ch.c; ctx.fillText(ch.txt,x-w/2,y0+62+h/2+1);
-      x-=w+gap; });
-    ctx.restore();
-  }
 }
 
 function drawFrame(t){
@@ -358,7 +417,7 @@ function drawFrame(t){
 
   // Kūfa shared label only in the neutral (ungrouped) state
   if(!anyActive){ ctx.font='400 11px Amiri, serif'; ctx.fillStyle='#7d9490';
-    ctx.textAlign='center'; ctx.fillText('الكوفة',422,54); }
+    ctx.textAlign='center'; ctx.fillText('الكوفة',430,78); }
 
   // draw order: curves → nodes → rings → satellites → labels
   vis.forEach(c=>drawCode(c.sym,c.a));
@@ -369,32 +428,31 @@ function drawFrame(t){
   Object.keys(seen).forEach(m=>drawSatellite(m, col[m], seen[m]));
   drawLabels(vis);
 
-  // current bayt for the caption: flash containing t, else the most recent one
-  let curN=null, curStart=-1;
-  FLASHES.forEach(f=>{ if(t>=f.t0-0.4 && f.t0>curStart){ curStart=f.t0; curN=f.n; } });
-  if(curN!=null){
-    const w=BAYTWIN[curN], fade=0.35;
-    let ca=1;
-    if(t<w.a) ca=1-Math.min(1,(w.a-t)/fade);
-    else if(t>w.b+0.6) ca=Math.max(0,1-(t-(w.b+0.6))/fade);
-    drawCaption(curN, Math.max(0,Math.min(1,ca)), vis.map(v=>v.sym));
-  } else {
-    ctx.textAlign='center'; ctx.font='700 24px Amiri, serif'; ctx.fillStyle='#f2f7f5';
-    ctx.fillText('بابُ الرُّموز',CW/2,524);
-    ctx.font='400 16px Amiri, serif'; ctx.fillStyle='#9fb3b0';
-    ctx.fillText('الأبيات ٤٩ – ٥٥ من الشاطبية',CW/2,552);
+  // bottom block: persistent header, then the current verse on one line beneath it
+  ctx.textAlign='center'; ctx.textBaseline='alphabetic';
+  ctx.font='700 16px Amiri, serif'; ctx.fillStyle='#e8c66a';
+  ctx.fillText('بابُ الرُّموز',CW/2,550);
+  ctx.font='400 12.5px Amiri, serif'; ctx.fillStyle='#8aa6a0';
+  ctx.fillText('الأبيات ٤٩ – ٥٥ من الشاطبية',CW/2,570);
+
+  const vn=verseAt(t);
+  if(vn!=null){
+    const b=vsegBounds(vn), fade=0.3; let ca=1;          // soft switch at boundaries
+    if(t<b.a+fade) ca=Math.min(1,(t-b.a)/fade);
+    else if(t>b.b-fade) ca=Math.max(0,(b.b-t)/fade);
+    drawVerseLine(vn, Math.max(0,Math.min(1,ca)));
   }
 
   // capture prompt
   if(capturing && capIdx<CODESEQ.length){
-    ctx.textAlign='center'; ctx.font='700 20px Amiri, serif'; ctx.fillStyle='#e8c66a';
-    ctx.fillText('⏱ المسافة عند: '+CODESEQ[capIdx].sym, CW/2, 474);
+    ctx.textAlign='center'; ctx.font='700 21px Amiri, serif'; ctx.fillStyle='#e8c66a';
+    ctx.fillText('⏱ المسافة عند: '+CODESEQ[capIdx].sym, CW/2, 500);
   }
 
   // one dot per bayt 49..55
-  const curIdx = curN!=null ? curN-49 : -1;
+  const curIdx = vn!=null ? vn-49 : -1;
   const step=16, x0=CW/2+(N-1)*step/2;
-  for(let i=0;i<N;i++){ ctx.beginPath(); ctx.arc(x0-i*step,598,3.3,0,7);
+  for(let i=0;i<N;i++){ ctx.beginPath(); ctx.arc(x0-i*step,620,3.3,0,7);
     ctx.fillStyle= i===curIdx ? '#e8c66a' : '#35505a'; ctx.fill(); }
 }
 
@@ -429,10 +487,11 @@ function seek(t){ vt=t; if(audioOk){ try{audio.currentTime=t;}catch(e){} } }
 
 function loop(ts){
   const dt=last?(ts-last)/1000:0; last=ts;
-  if(playing && !(audioOk && !audio.paused)) vt=Math.min(vt+dt, END());
+  if(playing && !(audioOk && !audio.paused)) vt=Math.min(vt+dt*(slow?0.5:1), capturing?1e9:END());
   const t=now();
   drawFrame(t);
-  if(playing && t>=END()){ stop(); }
+  if(editor.style.display!=='none'){ refreshEditor(); edNow.textContent='⏱ '+t.toFixed(2)+' ث'; }
+  if(playing && t>=END() && !capturing){ stop(); }   // don't cut a capture short
   requestAnimationFrame(loop);
 }
 
@@ -445,7 +504,7 @@ function start(){
   if(now()>=END()-0.05) seek(START);
   else if(now()<START) seek(START);
   playing=true; playBtn.textContent='⏸ إيقاف مؤقت';
-  if(audioOk){ audio.play().catch(()=>{}); }
+  if(audioOk){ audio.play().catch(()=>{}); applyRate(); }
 }
 function stop(){
   playing=false; playBtn.textContent='▶ تشغيل';
@@ -480,6 +539,7 @@ function buildStream(){
 function startRec(){
   const mime=pickMime();
   if(!mime){ setStatus('متصفّحك لا يدعم تسجيل الفيديو (MediaRecorder).'); return; }
+  slow=false; slowBtn.classList.remove('on'); slowBtn.textContent='½×'; if(audioOk) audio.playbackRate=1;
   dl.style.display='none';
   seek(START); drawFrame(START);
   const stream=buildStream();
@@ -512,7 +572,8 @@ cPer.oninput  =()=>{ PER=Math.max(1,+cPer.value||DEF_PER); localStorage.setItem(
 document.getElementById('calReset').onclick=()=>{
   START=DEF_START; PER=DEF_PER; cStart.value=START; cPer.value=PER;
   localStorage.removeItem('film_start'); localStorage.removeItem('film_per');
-  localStorage.removeItem('film_times'); capOut.style.display='none';
+  localStorage.removeItem('film_times'); localStorage.removeItem('film_times2');
+  localStorage.removeItem('film_times3'); capOut.style.display='none';
   buildFlashes(); seek(START); drawFrame(START);
   setStatus('أُعيد الضبط إلى التقدير (بداية '+ar(DEF_START)+' ث).');
 };
@@ -523,7 +584,7 @@ function startCapture(){
   capOut.style.display='none';
   seek(Math.max(START-1,0)); start();
   capBtn.textContent='⏹ إنهاء الالتقاط';
-  setStatus('وضع الالتقاط: اضغط «المسافة» عند سماع كل رمز بالترتيب — التالي: '+CODESEQ[0].sym);
+  setStatus('الالتقاط: اضغط «المسافة» عند كل رمز — بما فيها الأوّل. التالي: '+CODESEQ[0].sym);
 }
 function captureTap(){
   if(!capturing) return;
@@ -539,7 +600,7 @@ function finishCapture(){
   capRec.forEach(r=>{ if(r.t1==null && r.t0!=null) r.t1=+(r.t0+FLASHDUR).toFixed(2); });
   const done=capRec.some(r=>r.t0!=null);
   if(done){
-    localStorage.setItem('film_times',JSON.stringify(capRec)); buildFlashes();
+    localStorage.setItem('film_times3',JSON.stringify(capRec)); buildFlashes();
     capOut.style.display='block';
     capOut.value=JSON.stringify(capRec.map((r,i)=>({sym:CODESEQ[i].sym,t0:r.t0,t1:r.t1})));
     setStatus('تمّ حفظ التوقيت ✓ — يمكنك تشغيل الفيلم، أو نسخ النص أدناه وإرساله لي لأثبّته نهائيًّا.');
@@ -551,6 +612,47 @@ document.addEventListener('keydown',e=>{
   if(e.code==='Space'){ if(capturing){ e.preventDefault(); captureTap(); }
     else if(e.target===document.body){ e.preventDefault(); playing?stop():start(); } }
 });
+
+// ---- half speed --------------------------------------------------------
+let slow=false;
+const slowBtn=document.getElementById('slow');
+function applyRate(){ if(audioOk) audio.playbackRate=slow?0.5:1; }
+slowBtn.onclick=()=>{ slow=!slow; applyRate();
+  slowBtn.classList.toggle('on',slow); slowBtn.textContent=slow?'1× عادي':'½×'; };
+
+// ---- precision editor --------------------------------------------------
+const editor=document.getElementById('editor'), edRows=document.getElementById('edRows');
+const edBtn=document.getElementById('edBtn'), edNow=document.getElementById('edNow');
+const edCopy=document.getElementById('edCopy'), edOut=document.getElementById('edOut');
+function buildEditor(){
+  edRows.innerHTML='';
+  CODESEQ.forEach((c,i)=>{
+    const row=document.createElement('div'); row.className='erow'; row.dataset.i=i;
+    row.innerHTML='<span class="sym" style="color:'+GC[c.sym]+'">'+c.sym+'</span>'+
+      '<span class="t"></span>'+
+      '<button data-d="-0.1">−</button><button data-d="0.1">+</button>'+
+      '<button class="here">الآن</button>'+
+      '<span style="color:#56706b;font-size:.78rem">بيت '+ar(c.n)+'</span>';
+    edRows.appendChild(row);
+    row.querySelectorAll('button[data-d]').forEach(b=>b.onclick=()=>setT0(i,T0[i]+(+b.dataset.d)));
+    row.querySelector('.here').onclick=()=>setT0(i, now());
+  });
+  refreshEditor();
+}
+function refreshEditor(){
+  if(!edRows || editor.style.display==='none') return;
+  const t=now();
+  edRows.querySelectorAll('.erow').forEach(row=>{ const i=+row.dataset.i;
+    row.querySelector('.t').textContent=T0[i].toFixed(2);
+    row.classList.toggle('act', t>=FLASHES[i].t0 && t<FLASHES[i].t1); });
+}
+edBtn.onclick=()=>{ const show=editor.style.display==='none';
+  editor.style.display=show?'block':'none'; edBtn.classList.toggle('on',show);
+  if(show){ buildEditor(); } };
+edCopy.onclick=()=>{ edOut.style.display='block';
+  edOut.value=JSON.stringify(T0.map((t,i)=>({sym:CODESEQ[i].sym,t0:+t.toFixed(2)})));
+  edOut.select(); try{document.execCommand('copy');}catch(e){}
+  setStatus('نُسِخ التوقيت — ألصِقه في المحادثة لأثبّته نهائيًّا.'); };
 
 // ---- boot --------------------------------------------------------------
 (async function(){
