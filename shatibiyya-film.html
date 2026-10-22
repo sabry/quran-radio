@@ -62,8 +62,17 @@
 
   <div class="bar">
     <button id="play" class="primary">▶ تشغيل</button>
+    <button id="back">⏪ ٢ث−</button>
     <button id="restart">⟲ من البداية</button>
+    <button id="rec" class="rec">⏺ سجّل مقطعًا</button>
+    <a id="dl" class="dl" download="film-romooz.webm">⬇ حفظ المقطع</a>
   </div>
+  <p class="note">
+    <b>للمشاركة على وسائل التواصل:</b> زرّ <b>⏺ سجّل مقطعًا</b> يسجّل الفيلم ويتيح حفظه ملفَّ
+    فيديو (webm). لِضمان الصوت في الملف وصيغةٍ يقبلها أكثر المنصّات، الأسهل والأضمن تسجيلُ
+    الشاشة أثناء التشغيل (QuickTime على الحاسوب، أو مسجّل الشاشة في الهاتف) فتحصل على مقطعٍ
+    بالصوت (mp4) جاهزٍ للنشر.
+  </p>
 </div>
 
 <script>
@@ -78,7 +87,7 @@ const LOCAL_AUDIO  = './shatibiyya-matn.mp3';   // optional same-origin copy →
 
 // ---- timing ------------------------------------------------------------
 // The رموز section follows a long introduction; the verses begin ~7:40.
-const DEF_START = 459;    // seconds: open ~a second earlier, into the start of بيت 49
+const DEF_START = 458.8;  // seconds: open a touch into the start of بيت 49
 const DEF_PER   = 8;      // rough seconds/bayt — only seeds the estimate before calibration
 const FLASHDUR  = 2.2;    // fallback flash length for the estimate
 const N = 7;              // abyat 49..55
@@ -152,7 +161,7 @@ const CODESEQ=[
 // estimated (~4s before خ, from the within-bayt cadence) and حرمي pulled ~1s
 // earlier per the noted late tap. Aligned index-for-index with CODESEQ.
 const TIMES=[
-  {t0:462.20,t1:464.38},  // ث    (estimated: not tapped; placed ~2s before خ)
+  {t0:460.00,t1:464.38},  // ث    (flashes almost immediately after the audio starts)
   {t0:464.38,t1:472.65},  // خ
   {t0:472.65,t1:477.10},  // ذ
   {t0:477.10,t1:481.33},  // ظ
@@ -229,9 +238,12 @@ function blob(members,pad){
   C.forEach(p=>{ for(let i=0;i<K;i++){ const a=2*Math.PI*i/K; S.push({x:p.x+pad*Math.cos(a),y:p.y+pad*Math.sin(a)}); } });
   const h=hull(S);
   let top=h[0]; h.forEach(p=>{ if(p.y<top.y) top=p; });   // actual topmost outline vertex
-  return { d:smooth(h), cx:C.reduce((s,p)=>s+p.x,0)/C.length,
-           topY:Math.min.apply(null,h.map(p=>p.y)), tx:top.x, ty:top.y };
+  return { d:smooth(h), cx:C.reduce((s,p)=>s+p.x,0)/C.length, cy:C.reduce((s,p)=>s+p.y,0)/C.length,
+           topY:Math.min.apply(null,h.map(p=>p.y)), tx:top.x, ty:top.y, pts:h };
 }
+// centroid of all reader nodes — labels get pushed away from here into open space
+const MAPC = (()=>{ const ps=Object.keys(QN).map(k=>QN[k]);
+  return { x:ps.reduce((s,p)=>s+p.x,0)/ps.length, y:ps.reduce((s,p)=>s+p.y,0)/ps.length }; })();
 
 // ---- canvas setup ------------------------------------------------------
 const CW=680, CH=660, S=2;                 // design units × scale
@@ -285,9 +297,9 @@ function drawCode(sym,a){            // soft curve only; rings + labels are sepa
   const path=new Path2D(blob(GM[sym],46).d), color=GC[sym];
   ctx.save();
   ctx.globalAlpha=a*0.15; ctx.fillStyle=color; ctx.fill(path);
-  ctx.globalAlpha=a*0.92; ctx.lineWidth=2.4; ctx.strokeStyle=color;
-  ctx.setLineDash([6,4]); ctx.lineJoin='round'; ctx.stroke(path);
-  ctx.setLineDash([]); ctx.restore();
+  ctx.globalAlpha=a*0.95; ctx.lineWidth=2.6; ctx.strokeStyle=color;
+  ctx.lineJoin='round'; ctx.lineCap='round'; ctx.stroke(path);   // solid → closes cleanly
+  ctx.restore();
 }
 // nested member rings on qārī nodes (nested padding when a node joins >1 active group)
 function drawRings(vis){
@@ -305,10 +317,23 @@ function drawRings(vis){
 // distinct from the node letters/names so the code reads as the headline.
 function drawLabels(vis){
   const labs=vis.map(c=>{ const b=blob(GM[c.sym],46);
-    return {sym:c.sym,col:GC[c.sym],a:c.a,x:b.tx,y:Math.max(b.ty-20,58)}; });
+    // direction from the map centre to this group
+    let dx=b.cx-MAPC.x, dy=b.cy-MAPC.y, L=Math.hypot(dx,dy)||1; dx/=L; dy/=L;
+    let x,y;
+    if(dy>0.25){                       // low group → sit the badge above its curve, clear of the caption
+      x=b.tx; y=Math.max(b.ty-20,58);
+    }else{                             // else push to the outward edge of the curve, into open space
+      let best=b.pts[0], bd=-1e9;
+      b.pts.forEach(p=>{ const d=(p.x-b.cx)*dx+(p.y-b.cy)*dy; if(d>bd){ bd=d; best=p; } });
+      x=best.x+dx*22; y=best.y+dy*22;
+    }
+    x=Math.max(60, Math.min(CW-60, x));
+    y=Math.max(54, Math.min(470, y));
+    return {sym:c.sym,col:GC[c.sym],a:c.a,x,y};
+  });
   labs.sort((p,q)=>p.y-q.y);
   for(let i=0;i<labs.length;i++) for(let j=0;j<i;j++)
-    if(Math.abs(labs[i].x-labs[j].x)<80 && Math.abs(labs[i].y-labs[j].y)<44) labs[i].y=labs[j].y-44;
+    if(Math.abs(labs[i].x-labs[j].x)<84 && Math.abs(labs[i].y-labs[j].y)<46) labs[i].y=labs[j].y-46;
   ctx.save(); ctx.textAlign='center'; ctx.textBaseline='middle';
   labs.forEach(l=>{
     ctx.globalAlpha=l.a;
@@ -419,7 +444,7 @@ audio.addEventListener('error',()=>{ audioOk=false;
 // Drawing (and the stop point) run VIS_LEAD seconds ahead to compensate both.
 const VIS_LEAD = 1.0;
 let playing=false, vt=START, finished=false, last=0, wantTime=START;
-const CONTENT_END = () => lastT() + 0.3;          // stop right as the verses end
+const CONTENT_END = () => lastT() - 0.2;          // stop just after حصن, before the next verse bleeds in
 const drawTime = () => vt + VIS_LEAD;
 function seek(t){ vt=t; wantTime=t; finished=false; try{ audio.currentTime=t; }catch(e){} }
 // a seek issued before the audio's metadata loads is dropped — re-apply it so the
@@ -433,7 +458,7 @@ function loop(ts){
     else vt = Math.min(vt + dt, CONTENT_END());             // silent fallback
   }
   drawFrame(drawTime());
-  if(playing && drawTime() >= CONTENT_END()){ finished=true; stop(); }
+  if(playing && drawTime() >= CONTENT_END()){ finished=true; stop(); if(recOn) stopRec(); }
   requestAnimationFrame(loop);
 }
 
@@ -447,9 +472,40 @@ function start(){
 function stop(){ playing=false; playBtn.textContent='▶ تشغيل'; if(audioOk) audio.pause(); }
 playBtn.onclick=()=> playing?stop():start();
 document.getElementById('restart').onclick=()=>{ seek(START); start(); };   // back to verse 49, playing
+document.getElementById('back').onclick=()=>{ seek(Math.max(START, vt-2)); if(!playing) drawFrame(drawTime()); };
 document.addEventListener('keydown',e=>{
   if(e.code==='Space' && e.target===document.body){ e.preventDefault(); playing?stop():start(); }
 });
+
+// ---- record a downloadable clip ----------------------------------------
+let recorder=null, chunks=[], recOn=false, srcNode=null, actx=null;
+const recBtn=document.getElementById('rec'), dl=document.getElementById('dl');
+function pickMime(){ const c=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];
+  for(const m of c) if(window.MediaRecorder && MediaRecorder.isTypeSupported(m)) return m; return ''; }
+function recStream(){
+  const vs=cv.captureStream(30), stream=new MediaStream(vs.getVideoTracks());
+  if(AUDIO_LOCAL && audioOk){ try{        // audio only if same-origin (else tainted → silent)
+    actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+    srcNode=srcNode||actx.createMediaElementSource(audio);
+    const dest=actx.createMediaStreamDestination();
+    srcNode.connect(dest); srcNode.connect(actx.destination);
+    dest.stream.getAudioTracks().forEach(t=>stream.addTrack(t));
+  }catch(e){} }
+  return stream;
+}
+function startRec(){
+  const mime=pickMime(); if(!mime){ setStatus('التسجيل غير مدعوم في هذا المتصفح.'); return; }
+  dl.style.display='none'; seek(START);
+  chunks=[]; recorder=new MediaRecorder(recStream(),{mimeType:mime,videoBitsPerSecond:5000000});
+  recorder.ondataavailable=e=>{ if(e.data.size) chunks.push(e.data); };
+  recorder.onstop=()=>{ const blob=new Blob(chunks,{type:'video/webm'});
+    if(dl.href) URL.revokeObjectURL(dl.href); dl.href=URL.createObjectURL(blob);
+    dl.style.display='inline-block'; recOn=false; recBtn.textContent='⏺ سجّل مقطعًا'; recBtn.classList.remove('on'); };
+  recorder.start(200); recOn=true; recBtn.textContent='⏹ إيقاف التسجيل'; recBtn.classList.add('on');
+  start();
+}
+function stopRec(){ if(recorder && recorder.state!=='inactive') recorder.stop(); }
+recBtn.onclick=()=>{ if(recOn){ stopRec(); stop(); } else startRec(); };
 
 // ---- boot --------------------------------------------------------------
 (async function(){
