@@ -417,10 +417,13 @@ audio.addEventListener('error',()=>{ audioOk=false;
 // which made the flashes look ~1s late and the audio trail past the last verse.
 // Drawing (and the stop point) run VIS_LEAD seconds ahead to compensate both.
 const VIS_LEAD = 1.0;
-let playing=false, vt=START, finished=false, last=0;
+let playing=false, vt=START, finished=false, last=0, wantTime=START;
 const CONTENT_END = () => lastT() + 0.3;          // stop right as the verses end
 const drawTime = () => vt + VIS_LEAD;
-function seek(t){ vt=t; finished=false; if(audioOk){ try{ audio.currentTime=t; }catch(e){} } }
+function seek(t){ vt=t; wantTime=t; finished=false; try{ audio.currentTime=t; }catch(e){} }
+// a seek issued before the audio's metadata loads is dropped — re-apply it so the
+// film always opens at verse 49, never at the very start of the recording.
+audio.addEventListener('loadedmetadata',()=>{ try{ audio.currentTime=wantTime; }catch(e){} });
 
 function loop(ts){
   const dt=last?(ts-last)/1000:0; last=ts;
@@ -436,8 +439,9 @@ function loop(ts){
 const playBtn=document.getElementById('play');
 function start(){
   if(finished || drawTime() >= CONTENT_END()-0.05 || vt < START-0.1) seek(START);
+  try{ if(Math.abs((audio.currentTime||0) - vt) > 0.3) audio.currentTime = vt; }catch(e){}  // park at verse 49
   playing=true; playBtn.textContent='⏸ إيقاف';
-  if(audioOk) audio.play().catch(()=>{});
+  audio.play().catch(()=>{});
 }
 function stop(){ playing=false; playBtn.textContent='▶ تشغيل'; if(audioOk) audio.pause(); }
 playBtn.onclick=()=> playing?stop():start();

@@ -98,6 +98,16 @@
   /* embedded as two subtabs: #progress shows the wheel, #map shows the readers map */
   body.view-map #progressView{ display:none; }
   body.view-progress #mapView{ display:none; }
+  .reftoggle{ margin-top:20px; text-align:center; }
+  .reftoggle button{ background:none; border:1px solid var(--line); border-radius:8px;
+    color:var(--gold); font-size:13px; cursor:pointer; padding:7px 14px; font-family:inherit; }
+  .ref{ margin-top:12px; display:none; }
+  .ref.show{ display:block; }
+  .ref table{ width:100%; border-collapse:collapse; font-family:'Amiri',serif; margin-bottom:4px; }
+  .ref th,.ref td{ border:1px solid var(--line); padding:6px 8px; text-align:center; font-size:14px; }
+  .ref th{ color:var(--gold); font-size:12px; }
+  .ref td.s{ color:var(--gold); font-weight:700; }
+  .ref h3{ color:var(--gold); font-family:'Amiri',serif; margin:16px 0 6px; font-size:16px; text-align:center; }
 </style>
 </head>
 <body>
@@ -146,6 +156,8 @@
         <div class="map-cap" id="qmCap"></div>
       </div>
     </div>
+    <div class="reftoggle"><button id="refbtn">إظهار جدول القرّاء والرموز ▾</button></div>
+    <div class="ref" id="ref"></div>
   </div>
 </div>
 
@@ -420,6 +432,43 @@
   });
   // default: two clean, non-overlapping pairs to show the idea
   ['حقّ','عمّ'].forEach(s=>{ const b=chips.querySelector('[data-sym="'+s+'"]'); if(b) b.click(); });
+
+  // --- readers & codes reference (moved here from the test tab) ---
+  const QURRA=[
+    { name:'نافع', full:'نافع بن عبد الرحمن', city:'المدينة', nick:'المدني', sym:'أ', group:'أبج',
+      rawis:[{name:'قالون', sym:'ب', full:'عيسى بن مِينا المدني (أبو موسى)'}, {name:'ورش', sym:'ج', full:'عثمان بن سعيد المصري (أبو سعيد)'}] },
+    { name:'ابن كثير', full:'عبد الله بن كثير', city:'مكة', nick:'المكي', sym:'د', group:'دهز',
+      rawis:[{name:'البزّي', sym:'هـ', full:'أحمد بن محمد البَزّي المكّي (أبو الحسن)'}, {name:'قنبل', sym:'ز', full:'محمد بن عبد الرحمن المخزومي المكّي (أبو عمر)'}] },
+    { name:'أبو عمرو', full:'زبّان بن العلاء', city:'البصرة', nick:'البصري', sym:'ح', group:'حطي',
+      rawis:[{name:'الدوري', sym:'ط', of:'أبي عمرو', full:'حفص بن عمر الدُّوري (أبو عمر)'}, {name:'السوسي', sym:'ي', full:'صالح بن زياد السُّوسي (أبو شعيب)'}] },
+    { name:'ابن عامر', full:'عبد الله بن عامر', city:'الشام (دمشق)', nick:'اليحصبي', sym:'ك', group:'كلم',
+      rawis:[{name:'هشام', sym:'ل', full:'هشام بن عمّار الدمشقي (أبو الوليد)'}, {name:'ابن ذكوان', sym:'م', full:'عبد الله بن أحمد بن ذكوان الدمشقي (أبو عمرو)'}] },
+    { name:'عاصم', full:'عاصم بن أبي النجود', city:'الكوفة', nick:'الكوفي', sym:'ن', group:'نصع',
+      rawis:[{name:'شعبة', sym:'ص', full:'شعبة بن عيّاش الأسدي الكوفي (أبو بكر)'}, {name:'حفص', sym:'ع', full:'حفص بن سليمان الأسدي الكوفي (أبو عمر)'}] },
+    { name:'حمزة', full:'حمزة بن حبيب الزيّات', city:'الكوفة', nick:'الزيّات', sym:'ف', group:'فضق',
+      rawis:[{name:'خلف', sym:'ض', of:'حمزة', full:'خلف بن هشام البزّار البغدادي (أبو محمد)'}, {name:'خلاد', sym:'ق', full:'خلّاد بن خالد الشيباني الكوفي (أبو عيسى)'}] },
+    { name:'الكسائي', full:'علي بن حمزة', city:'الكوفة', nick:'الكسائي', sym:'ر', group:'رست',
+      rawis:[{name:'أبو الحارث', sym:'س', full:'الليث بن خالد البغدادي (أبو الحارث)'}, {name:'الدوري', sym:'ت', of:'الكسائي', full:'حفص بن عمر الدُّوري (أبو عمر)'}] },
+  ];
+  function buildRef(){
+    let h='<h3>القرّاء ورواتهم ورموزهم</h3><table><tr><th>القارئ</th><th>الرمز</th><th>الراوي ١</th><th>الرمز</th><th>الراوي ٢</th><th>الرمز</th><th>الثلاثي</th></tr>';
+    QURRA.forEach(q=>{ h+='<tr><td>'+q.name+'</td><td class="s">'+q.sym+'</td>'
+      +'<td>'+q.rawis[0].name+'</td><td class="s">'+q.rawis[0].sym+'</td>'
+      +'<td>'+q.rawis[1].name+'</td><td class="s">'+q.rawis[1].sym+'</td>'
+      +'<td class="s">'+q.group+'</td></tr>'; });
+    h+='</table><h3>الأسماء والألقاب والبلدان</h3><table><tr><th>القارئ</th><th>الاسم</th><th>البلد</th><th>اللقب</th></tr>';
+    QURRA.forEach(q=>{ h+='<tr><td>'+q.name+'</td><td>'+q.full+'</td><td>'+q.city+'</td><td>'+q.nick+'</td></tr>'; });
+    h+='</table><h3>رواة القرّاء بأسمائهم الكاملة</h3><table><tr><th>القارئ</th><th>الراوي</th><th>الرمز</th><th>الاسم الكامل</th></tr>';
+    QURRA.forEach(q=>{ q.rawis.forEach((r,i)=>{ h+='<tr>'+(i===0?'<td rowspan="2">'+q.name+'</td>':'')
+      +'<td>'+(r.of?r.name+' (عن '+r.of+')':r.name)+'</td><td class="s">'+r.sym+'</td><td>'+(r.full||'')+'</td></tr>'; }); });
+    h+='</table><h3>الرموز الجماعية</h3><table><tr><th>الرمز</th><th>القرّاء</th></tr>';
+    GR.forEach(g=>{ h+='<tr><td class="s">'+g.sym+'</td><td>'+g.desc+(g.note?' <span class="mut">('+g.note+')</span>':'')+'</td></tr>'; });
+    h+='</table>';
+    el('ref').innerHTML=h;
+  }
+  buildRef();
+  el('refbtn').onclick=function(){ const r=el('ref'); const on=r.classList.toggle('show');
+    this.textContent = on ? 'إخفاء جدول القرّاء والرموز ▴' : 'إظهار جدول القرّاء والرموز ▾'; };
 })();
 </script>
 </body>

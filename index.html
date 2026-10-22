@@ -3186,6 +3186,12 @@
   document.addEventListener('click', e => {
     if(!els.modeShatibiyya.contains(e.target)) closeShatMenu();
   });
+  // Belt-and-suspenders for the split views: besides the #map / #progress hash,
+  // set the view class directly on each embedded page once it loads.
+  els.studyFrame.addEventListener('load', () => {
+    try{ els.studyFrame.contentDocument.body.classList.add('view-map'); }catch(e){} });
+  els.progressFrame.addEventListener('load', () => {
+    try{ els.progressFrame.contentDocument.body.classList.add('view-progress'); }catch(e){} });
 
   // ---- Review mode ------------------------------------------------------
 

@@ -103,8 +103,6 @@
     <button class="next" id="next" hidden>التالي ←</button>
   </div>
 
-  <div class="reftoggle"><button id="refbtn">إظهار جدول الرموز ▾</button></div>
-  <div class="ref" id="ref"></div>
 </div>
 
 <script>
@@ -390,31 +388,7 @@
   el('next').onclick=nextQ;
   document.addEventListener('keydown',e=>{ if(e.key==='Enter' && !el('next').hidden) nextQ(); });
 
-  // ---- reference table --------------------------------------------------
-  function buildRef(){
-    let h = '<h3>القرّاء ورواتهم ورموزهم</h3><table><tr><th>القارئ</th><th>الرمز</th><th>الراوي ١</th><th>الرمز</th><th>الراوي ٢</th><th>الرمز</th><th>الثلاثي</th></tr>';
-    QURRA.forEach(q=>{ h+='<tr><td>'+q.name+'</td><td class="s">'+q.sym+'</td>'
-      +'<td>'+q.rawis[0].name+'</td><td class="s">'+q.rawis[0].sym+'</td>'
-      +'<td>'+q.rawis[1].name+'</td><td class="s">'+q.rawis[1].sym+'</td>'
-      +'<td class="s">'+q.group+'</td></tr>'; });
-    h+='</table><h3>الأسماء والألقاب والبلدان</h3><table><tr><th>القارئ</th><th>الاسم</th><th>البلد</th><th>اللقب</th></tr>';
-    QURRA.forEach(q=>{ h+='<tr><td>'+q.name+'</td><td>'+q.full+'</td><td>'+q.city+'</td><td>'+q.nick+'</td></tr>'; });
-    h+='</table><h3>رواة القرّاء بأسمائهم الكاملة</h3><table><tr><th>القارئ</th><th>الراوي</th><th>الرمز</th><th>الاسم الكامل</th></tr>';
-    QURRA.forEach(q=>{ q.rawis.forEach((r,i)=>{ h+='<tr>'+(i===0?'<td rowspan="2">'+q.name+'</td>':'')
-      +'<td>'+(r.of?r.name+' (عن '+r.of+')':r.name)+'</td><td class="s">'+r.sym+'</td><td>'+(r.full||'')+'</td></tr>'; }); });
-    h+='</table><h3>الرموز الجماعية</h3><table><tr><th>الرمز</th><th>القرّاء</th></tr>';
-    GROUPS.forEach(g=>{ h+='<tr><td class="s">'+g.sym+'</td><td>'+g.members.join('، ')+'</td></tr>'; });
-    h+='</table><h3>أبيات الشاطبية — الأحكام والرموز</h3><table><tr><th>البيت</th><th>الحكم</th><th>على مَن</th></tr>';
-    ABYAT.forEach(d=>{
-      h+='<tr><td>'+d.bayt+'<br><span style="color:var(--muted);font-size:11px">'+d.ref+' · '+d.keys+'</span></td>'
-        +'<td>'+d.ruling+'</td><td>'+d.who.join('، ')+'</td></tr>'; });
-    h+='</table>';
-    const cov = document.getElementById('cov'); if(cov) cov.textContent = 'عدد الأبيات المشمولة: '+new Set(ABYAT.map(d=>d.bayt)).size+' · عدد الأحكام: '+ABYAT.length;
-    el('ref').innerHTML=h;
-  }
-  buildRef();
-  el('refbtn').onclick=()=>{ const r=el('ref'); const on=r.classList.toggle('show');
-    el('refbtn').textContent = on ? 'إخفاء جدول الرموز ▴' : 'إظهار جدول الرموز ▾'; };
+  // The رموز reference tables now live in the study (دراسة) view, not here.
 
   // ---- load the full abyāt collection (JSON), fall back to inline seed ----
   // Flatten {n,bab,bayt,rulings:[{ruling,who,keys}]} into the flat rows the
@@ -428,10 +402,10 @@
   (function loadAbyat(){
     const CACHE_KEY='shat.abyat.v1';
     try{ const c=JSON.parse(localStorage.getItem(CACHE_KEY)||'null');
-      if(c && c.length){ ABYAT=c; buildRef(); } }catch(e){}
+      if(c && c.length){ ABYAT=c; } }catch(e){}
     fetch('./shatibiyya-abyat.json',{cache:'no-cache'}).then(r=>r.ok?r.json():null).then(j=>{
       if(!j) return; const flat=flattenAbyat(j);
-      if(flat.length){ ABYAT=flat; buildRef();
+      if(flat.length){ ABYAT=flat;
         try{ localStorage.setItem(CACHE_KEY, JSON.stringify(flat)); }catch(e){} }
     }).catch(()=>{});
   })();
