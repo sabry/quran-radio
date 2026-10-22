@@ -95,50 +95,56 @@
   .backlink{ display:inline-block; color:var(--gold); text-decoration:none; font-size:12.5px;
     border:1px solid var(--line); border-radius:8px; padding:6px 12px; }
   .backlink:hover{ border-color:var(--gold); }
+  /* embedded as two subtabs: #progress shows the wheel, #map shows the readers map */
+  body.view-map #progressView{ display:none; }
+  body.view-progress #mapView{ display:none; }
 </style>
 </head>
 <body>
+<script>/* when embedded as a subtab: #map → readers map only, #progress → wheel only */
+(function(){ var h=location.hash;
+  if(h==='#map') document.body.classList.add('view-map');
+  else if(h==='#progress') document.body.classList.add('view-progress'); })();</script>
 <div class="wrap">
-  <h1>حِرز الأماني — تتبّع الحفظ</h1>
-  <div class="sub">Progress through the 1173 abyāt of Ash-Shāṭibiyyah, bāb by bāb</div>
-  <div style="text-align:center;margin:2px 0 16px">
-    <a href="shatibiyya-keys.html" class="backlink">→ رموز الشاطبية (التمارين)</a>
-    &nbsp;·&nbsp;
-    <a href="shatibiyya-film.html" class="backlink">🎬 فيلم الرموز</a>
-  </div>
+  <div id="progressView">
+    <h1>حِرز الأماني — تتبّع الحفظ</h1>
+    <div class="sub">Progress through the 1173 abyāt of Ash-Shāṭibiyyah, bāb by bāb</div>
 
-  <div class="pie-card">
-    <div class="pie-wrap">
-      <div class="pie" id="pie" style="--pct:0"></div>
-      <div class="hole">
-        <div class="pct" id="pctLabel">0%</div>
-        <div class="count" id="countLabel">0 / 1173</div>
+    <div class="pie-card">
+      <div class="pie-wrap">
+        <div class="pie" id="pie" style="--pct:0"></div>
+        <div class="hole">
+          <div class="pct" id="pctLabel">0%</div>
+          <div class="count" id="countLabel">0 / 1173</div>
+        </div>
       </div>
+      <div class="field">
+        <label for="value">آخر بيت حفظته</label>
+        <input type="number" id="value" min="0" max="1173" step="1" value="0" inputmode="numeric">
+      </div>
+      <input type="range" id="slider" min="0" max="1173" step="1" value="0">
+      <div class="cur" id="curChapter"></div>
     </div>
-    <div class="field">
-      <label for="value">آخر بيت حفظته</label>
-      <input type="number" id="value" min="0" max="1173" step="1" value="0" inputmode="numeric">
-    </div>
-    <input type="range" id="slider" min="0" max="1173" step="1" value="0">
-    <div class="cur" id="curChapter"></div>
+
+    <div id="sections"></div>
   </div>
 
-  <div id="sections"></div>
-
-  <div class="section">
-    <div class="sec-head">
-      <div><span class="sec-title">خريطة القرّاء ورموز الجماعات</span>
-        <span class="sec-en">Qurrāʾ by region · group codes</span></div>
-    </div>
-    <div class="map-card">
-      <div class="chips" id="grpChips"></div>
-      <div class="map-hint">اختر رمزًا (أو أكثر) لإبرازه · المواضع تقريبية حسب بلد كل قارئ · داخل كل عقدة حرف القارئ (ذهبي) ثم حرفا راوييه</div>
-      <svg id="qmap" viewBox="0 0 680 482" role="img" aria-label="خريطة القرّاء السبعة ورموز الجماعات">
-        <g id="qmOvals"></g>
-        <g id="qmRings"></g>
-        <g id="qmNodes"></g>
-      </svg>
-      <div class="map-cap" id="qmCap"></div>
+  <div id="mapView">
+    <div class="section">
+      <div class="sec-head">
+        <div><span class="sec-title">خريطة القرّاء ورموز الجماعات</span>
+          <span class="sec-en">Qurrāʾ by region · group codes</span></div>
+      </div>
+      <div class="map-card">
+        <div class="chips" id="grpChips"></div>
+        <div class="map-hint">اختر رمزًا (أو أكثر) لإبرازه · المواضع تقريبية حسب بلد كل قارئ · داخل كل عقدة حرف القارئ (ذهبي) ثم حرفا راوييه</div>
+        <svg id="qmap" viewBox="0 0 680 482" role="img" aria-label="خريطة القرّاء السبعة ورموز الجماعات">
+          <g id="qmOvals"></g>
+          <g id="qmRings"></g>
+          <g id="qmNodes"></g>
+        </svg>
+        <div class="map-cap" id="qmCap"></div>
+      </div>
     </div>
   </div>
 </div>

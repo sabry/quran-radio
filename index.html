@@ -252,9 +252,11 @@
   .game{ display:none; width:100%; max-width:460px; }
   .game iframe{ display:block; width:100%; height:calc(100dvh - 170px); min-height:420px;
     max-height:760px; border:none; border-radius:16px; background:transparent; color-scheme:dark; }
-  body.is-game #gameWrap, body.is-study #studyWrap, body.is-film #filmWrap{ display:block; }
+  body.is-game #gameWrap, body.is-study #studyWrap,
+  body.is-progress #progressWrap, body.is-film #filmWrap{ display:block; }
   body.is-game .card, body.is-game .rosette, body.is-game .about, body.is-game .updated,
   body.is-study .card, body.is-study .rosette, body.is-study .about, body.is-study .updated,
+  body.is-progress .card, body.is-progress .rosette, body.is-progress .about, body.is-progress .updated,
   body.is-film .card, body.is-film .rosette, body.is-film .about, body.is-film .updated{ display:none; }
 
   /* الشاطبية dropdown */
@@ -824,8 +826,9 @@
       <div class="submenu" id="shatMenu" role="menu" aria-label="الشاطبية">
         <button class="submenu-item" data-sub="matn"  role="menuitem"><span class="s-ar">استماع</span><span class="s-en">listen</span></button>
         <button class="submenu-item" data-sub="game"  role="menuitem"><span class="s-ar">اختبار</span><span class="s-en">test</span></button>
-        <button class="submenu-item" data-sub="study" role="menuitem"><span class="s-ar">دراسة</span><span class="s-en">study</span></button>
-        <button class="submenu-item" data-sub="film"  role="menuitem"><span class="s-ar">فيلم</span><span class="s-en">movie</span></button>
+        <button class="submenu-item" data-sub="study"    role="menuitem"><span class="s-ar">دراسة</span><span class="s-en">study</span></button>
+        <button class="submenu-item" data-sub="progress" role="menuitem"><span class="s-ar">تقدّم</span><span class="s-en">progress</span></button>
+        <button class="submenu-item" data-sub="film"     role="menuitem"><span class="s-ar">فيلم</span><span class="s-en">movie</span></button>
       </div>
     </div>
     <button class="mode-tab" id="modeDua" role="tab" aria-selected="false">
@@ -974,7 +977,8 @@
     </div>
 
     <div class="game" id="gameWrap"><iframe id="gameFrame" title="رموز الشاطبية" loading="lazy"></iframe></div>
-    <div class="game" id="studyWrap"><iframe id="studyFrame" title="خريطة القرّاء وتتبّع الحفظ" loading="lazy"></iframe></div>
+    <div class="game" id="studyWrap"><iframe id="studyFrame" title="خريطة القرّاء" loading="lazy"></iframe></div>
+    <div class="game" id="progressWrap"><iframe id="progressFrame" title="تتبّع الحفظ" loading="lazy"></iframe></div>
     <div class="game" id="filmWrap"><iframe id="filmFrame" title="فيلم الرموز" loading="lazy"></iframe></div>
   </div>
 
@@ -1166,6 +1170,7 @@
   let duaMode = false;
   let gameMode = false;
   let studyMode = false;
+  let progressMode = false;
   let filmMode = false;
   let shatAyat = null;       // { n: {sadr, ajz} }, fetched at runtime
   let shatTitles = null;     // { firstBaytOfChapter: title }
@@ -1375,6 +1380,7 @@
     shatSubLabel: document.getElementById('shatSubLabel'),
     gameFrame: document.getElementById('gameFrame'),
     studyFrame: document.getElementById('studyFrame'),
+    progressFrame: document.getElementById('progressFrame'),
     filmFrame: document.getElementById('filmFrame'),
     duaCard: document.getElementById('duaCard'),
     duaScroll: document.getElementById('duaScroll'),
@@ -3049,8 +3055,9 @@
     duaMode = name === 'dua';
     gameMode = name === 'game';
     studyMode = name === 'study';
+    progressMode = name === 'progress';
     filmMode = name === 'film';
-    const shatChild = (name === 'matn' || name === 'game' || name === 'study' || name === 'film');
+    const shatChild = (name === 'matn' || name === 'game' || name === 'study' || name === 'progress' || name === 'film');
     [['radio', els.modeRadio], ['friday', els.modeFriday], ['review', els.modeReview],
      ['werd', els.modeWerd], ['tajweed', els.modeTajweed], ['dua', els.modeDua]]
       .forEach(([n, el]) => {
@@ -3061,7 +3068,7 @@
     // الشاطبية parent reflects whichever of its four children is active
     els.modeShatibiyya.classList.toggle('active', shatChild);
     els.modeShatibiyya.setAttribute('aria-selected', String(shatChild));
-    const subLabels = { matn:'استماع', game:'اختبار', study:'دراسة', film:'فيلم' };
+    const subLabels = { matn:'استماع', game:'اختبار', study:'دراسة', progress:'تقدّم', film:'فيلم' };
     els.shatSubLabel.textContent = (shatChild ? subLabels[name] : 'matn') + ' ▾';
     els.shatMenu.querySelectorAll('.submenu-item').forEach(it =>
       it.classList.toggle('active', it.dataset.sub === name));
@@ -3073,6 +3080,7 @@
       : name === 'dua' ? "Duʿāʾ · supplications"
       : name === 'game' ? "Rumūz · quiz"
       : name === 'study' ? "Dirāsa · readers map"
+      : name === 'progress' ? "Taqaddum · memorization"
       : name === 'film' ? "Film · ar-rumūz"
       : "Random Qira'at Radio";
     els.reviewSetup.style.display = reviewMode ? 'block' : 'none';
@@ -3084,9 +3092,11 @@
     document.body.classList.toggle('is-dua', duaMode);
     document.body.classList.toggle('is-game', gameMode);
     document.body.classList.toggle('is-study', studyMode);
+    document.body.classList.toggle('is-progress', progressMode);
     document.body.classList.toggle('is-film', filmMode);
     if(gameMode && !els.gameFrame.src) els.gameFrame.src = 'shatibiyya-keys.html';   // lazy-load once
-    if(studyMode && !els.studyFrame.src) els.studyFrame.src = 'progress-pie.html';
+    if(studyMode && !els.studyFrame.src) els.studyFrame.src = 'progress-pie.html#map';
+    if(progressMode && !els.progressFrame.src) els.progressFrame.src = 'progress-pie.html#progress';
     if(filmMode && !els.filmFrame.src) els.filmFrame.src = 'shatibiyya-film.html';
     // Switching tabs never auto-plays; it pauses and resets to a ready state,
     // then waits for the play button (radio/friday) or Start (review).
@@ -3140,8 +3150,8 @@
       els.reciterName.textContent = '—';
       els.riwayahName.textContent = '—';
       prepareDua();
-    } else if(gameMode || studyMode || filmMode){
-      // Embedded views (quiz / readers map / film) — each iframe carries its own UI.
+    } else if(gameMode || studyMode || progressMode || filmMode){
+      // Embedded views (quiz / map / progress / film) — each iframe carries its own UI.
     } else {
       setEyebrow('PRESS PLAY', false);
       els.surahName.textContent = '—';
@@ -3855,7 +3865,7 @@
     // Reopen the tab the listener was last on.
     let last = null;
     try{ last = localStorage.getItem('muqri.mode'); }catch(e){}
-    if(last && last !== 'radio' && ['friday','review','matn','werd','tajweed','dua','game','study','film'].indexOf(last) !== -1){
+    if(last && last !== 'radio' && ['friday','review','matn','werd','tajweed','dua','game','study','progress','film'].indexOf(last) !== -1){
       setMode(last);
     }
   }

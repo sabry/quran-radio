@@ -55,7 +55,6 @@
 </head>
 <body>
 <div class="wrap">
-  <a class="back" href="progress-pie.html">⟵ خريطة القرّاء</a>
   <h1>فيلم الرموز</h1>
   <p class="sub">بابُ رموز القرّاء من حِرز الأماني (الأبيات ٤٩–٥٥) — تومِض كل علامةٍ على القرّاء الذين تدلّ عليهم لحظةَ ذِكرها في التلاوة، ثم تختفي.</p>
 
@@ -63,49 +62,7 @@
 
   <div class="bar">
     <button id="play" class="primary">▶ تشغيل</button>
-    <button id="restart">⟲ من البداية</button>
-    <button id="slow">½×</button>
-    <button id="rec" class="rec">⏺ تسجيل فيديو</button>
-    <a id="dl" class="dl" download="shatibiyya-romooz.webm">⬇ احفظ الفيديو</a>
   </div>
-  <p class="status" id="status"></p>
-
-  <div class="cal">
-    <label>بداية الرموز (ث): <input id="cStart" type="number" step="1" min="0"></label>
-    <label>مدّة البيت (ث): <input id="cPer" type="number" step="0.1" min="1"></label>
-    <button id="edBtn" style="padding:5px 12px;font-size:.88rem">✎ ضبط دقيق</button>
-    <button id="capBtn" style="padding:5px 12px;font-size:.88rem">⏱ التقاط التوقيت</button>
-    <button id="calReset" style="padding:5px 10px;font-size:.85rem">إعادة الضبط</button>
-  </div>
-  <textarea id="capOut" readonly style="display:none;width:100%;height:70px;margin-top:8px;
-    background:#0b1418;color:#bfe0d6;border:1px solid #28383d;border-radius:8px;
-    font-family:ui-monospace,monospace;font-size:.78rem;padding:8px;direction:ltr"></textarea>
-
-  <div id="editor" style="display:none;margin-top:10px;border:1px solid #28383d;border-radius:12px;padding:12px;background:#0b1317">
-    <div style="color:#9fb3b0;font-size:.86rem;line-height:1.6;margin-bottom:10px">
-      شغِّل الفيلم بسرعة <b style="color:#d9e6e2">½×</b>، واضبط كل رمز: زرّ <b style="color:#d9e6e2">الآن</b>
-      يجعل لحظة الرمز = الزمن الحالي، و<b style="color:#d9e6e2">−/+</b> يُزيحه ٠٫١ث. يُحفَظ فورًا.
-    </div>
-    <div id="edRows"></div>
-    <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-      <button id="edCopy" style="padding:6px 14px;font-size:.86rem">نسخ التوقيت لإرساله</button>
-      <span id="edNow" style="color:#7d9490;font-size:.84rem;font-family:ui-monospace,monospace"></span>
-    </div>
-    <textarea id="edOut" readonly style="display:none;width:100%;height:66px;margin-top:8px;
-      background:#0b1418;color:#bfe0d6;border:1px solid #28383d;border-radius:8px;
-      font-family:ui-monospace,monospace;font-size:.76rem;padding:8px;direction:ltr"></textarea>
-  </div>
-
-  <p class="note">
-    <b>المزامنة:</b> للمزامنة الدقيقة اضغط <b>⏱ التقاط التوقيت</b>، ثم اضغط مفتاح
-    «المسافة» عند سماع كل رمزٍ بالترتيب المعروض؛ تُحفَظ الأوقات تلقائيًّا، ويظهر نصٌّ
-    يمكنك نسخه وإرساله لأُثبّته في الفيلم نهائيًّا. وبدون الالتقاط يعتمد الفيلم على
-    تقديرٍ تقريبيّ تضبطه بحقلَي «البداية» و«مدّة البيت».<br>
-    <b>الصوت:</b> يُشغَّل الفيلم على تسجيل المتن الموجود في التطبيق ابتداءً من موضع الرموز.
-    لِحفظ الفيديو <b>بالصوت</b> ضَع نسخةً من ملف التلاوة باسم
-    <code>shatibiyya-matn.mp3</code> بجانب هذه الصفحة؛ وإلا حُفِظ المقطع بالصورة فقط
-    (ويبقى الصوت مسموعًا أثناء المشاهدة).
-  </p>
 </div>
 
 <script>
@@ -126,8 +83,8 @@ const FLASHDUR  = 2.2;    // fallback flash length for the estimate
 const N = 7;              // abyat 49..55
 const TAIL = 0.6;         // trailing audio after حصن
 
-let START = +(localStorage.getItem('film_start') || DEF_START);
-let PER   = +(localStorage.getItem('film_per')   || DEF_PER);
+const START = DEF_START;
+const PER   = DEF_PER;
 
 // ---- map geometry (identical to progress-pie.html) ---------------------
 const QN = {
@@ -210,16 +167,9 @@ const TIMES=[
   {t0:516.28,t1:520.00},  // حصن
 ];
 let FLASHES=[], BAYTWIN={}, T0=[];
-let capturing=false, capIdx=0, capRec=[];
 const LAST_HOLD=3.7;      // حصن's length (no "next code" to bound it)
-function buildT0(){       // 14 start times: saved → measured → estimate
-  const saved=JSON.parse(localStorage.getItem('film_times3')||'null');
-  T0=CODESEQ.map((c,i)=>{
-    if(saved&&saved[i]&&saved[i].t0!=null) return saved[i].t0;
-    if(TIMES[i]&&TIMES[i].t0!=null) return TIMES[i].t0;
-    const k=c.n-49; return START+k*PER+c.f*PER;
-  });
-}
+function buildT0(){ T0=CODESEQ.map((c,i)=>
+  (TIMES[i] && TIMES[i].t0!=null) ? TIMES[i].t0 : (START + (c.n-49)*PER + c.f*PER)); }
 let VSEG=[];
 function buildFlashes(){
   buildT0();
@@ -241,16 +191,6 @@ function buildFlashes(){
 function verseAt(t){ let n=null; for(const s of VSEG){ if(t>=s.a) n=s.n; else break; } return n; }
 function vsegBounds(n){ const i=VSEG.findIndex(s=>s.n===n); if(i<0) return null;
   return { a:VSEG[i].a, b: i<VSEG.length-1 ? VSEG[i+1].a : lastT()+TAIL }; }
-function saveT0(){ localStorage.setItem('film_times3',
-  JSON.stringify(T0.map((t,i)=>({sym:CODESEQ[i].sym,t0:+t.toFixed(2)})))); }
-function setT0(i,val){                    // keep order, min 0.2s between neighbours
-  let v=Math.max(0,val);
-  if(i>0) v=Math.max(v, T0[i-1]+0.2);
-  if(i<T0.length-1) v=Math.min(v, T0[i+1]-0.2);
-  T0[i]=+v.toFixed(2); buildFlashes(); saveT0();
-  if(typeof refreshEditor==='function') refreshEditor();
-  if(!playing) drawFrame(now());
-}
 const firstT=()=>FLASHES.length?Math.min.apply(null,FLASHES.map(f=>f.t0)):START;
 const lastT =()=>FLASHES.length?Math.max.apply(null,FLASHES.map(f=>f.t1)):START+N*PER;
 // flash envelope: fixed-duration snap-in / fade-out (crisp regardless of window
@@ -443,12 +383,6 @@ function drawFrame(t){
     drawVerseLine(vn, Math.max(0,Math.min(1,ca)));
   }
 
-  // capture prompt
-  if(capturing && capIdx<CODESEQ.length){
-    ctx.textAlign='center'; ctx.font='700 21px Amiri, serif'; ctx.fillStyle='#e8c66a';
-    ctx.fillText('⏱ المسافة عند: '+CODESEQ[capIdx].sym, CW/2, 500);
-  }
-
   // one dot per bayt 49..55
   const curIdx = vn!=null ? vn-49 : -1;
   const step=16, x0=CW/2+(N-1)*step/2;
@@ -462,7 +396,7 @@ audio.preload='auto';
 let AUDIO_LOCAL=false, audioOk=false;
 const status=document.getElementById('status');
 
-function setStatus(m){ status.textContent=m; }
+function setStatus(m){ if(status) status.textContent=m; }
 
 async function pickAudio(){
   // prefer a local same-origin copy (lets the saved clip carry sound)
@@ -478,181 +412,38 @@ audio.addEventListener('canplay',()=>{ audioOk=true; });
 audio.addEventListener('error',()=>{ audioOk=false;
   setStatus('تعذّر تحميل الصوت؛ يعمل الفيلم صامتًا. يمكنك وضع shatibiyya-matn.mp3 بجوار الصفحة.'); });
 
-let playing=false, vt=0, last=0;
-const END = () => lastT() + TAIL;
-
-function now(){ return (audioOk && !audio.paused) ? audio.currentTime : vt; }
-
-function seek(t){ vt=t; if(audioOk){ try{audio.currentTime=t;}catch(e){} } }
+// ---- clock + play / pause ----------------------------------------------
+// The installed app plays the audio a beat ahead of its reported currentTime,
+// which made the flashes look ~1s late and the audio trail past the last verse.
+// Drawing (and the stop point) run VIS_LEAD seconds ahead to compensate both.
+const VIS_LEAD = 1.0;
+let playing=false, vt=START, finished=false, last=0;
+const CONTENT_END = () => lastT() + 0.3;          // stop right as the verses end
+const drawTime = () => vt + VIS_LEAD;
+function seek(t){ vt=t; finished=false; if(audioOk){ try{ audio.currentTime=t; }catch(e){} } }
 
 function loop(ts){
   const dt=last?(ts-last)/1000:0; last=ts;
-  if(playing && !(audioOk && !audio.paused)) vt=Math.min(vt+dt*(slow?0.5:1), capturing?1e9:END());
-  const t=now();
-  drawFrame(t);
-  if(editor.style.display!=='none'){ refreshEditor(); edNow.textContent='⏱ '+t.toFixed(2)+' ث'; }
-  if(playing && t>=END() && !capturing){ stop(); }   // don't cut a capture short
+  if(playing){
+    if(audioOk && !audio.paused) vt = audio.currentTime;    // follow the audio
+    else vt = Math.min(vt + dt, CONTENT_END());             // silent fallback
+  }
+  drawFrame(drawTime());
+  if(playing && drawTime() >= CONTENT_END()){ finished=true; stop(); }
   requestAnimationFrame(loop);
 }
 
-// ---- controls ----------------------------------------------------------
 const playBtn=document.getElementById('play');
-const recBtn=document.getElementById('rec');
-const dl=document.getElementById('dl');
-
 function start(){
-  if(now()>=END()-0.05) seek(START);
-  else if(now()<START) seek(START);
-  playing=true; playBtn.textContent='⏸ إيقاف مؤقت';
-  if(audioOk){ audio.play().catch(()=>{}); applyRate(); }
+  if(finished || drawTime() >= CONTENT_END()-0.05 || vt < START-0.1) seek(START);
+  playing=true; playBtn.textContent='⏸ إيقاف';
+  if(audioOk) audio.play().catch(()=>{});
 }
-function stop(){
-  playing=false; playBtn.textContent='▶ تشغيل';
-  if(audioOk) audio.pause();
-  if(rec && recState==='on') stopRec();
-}
+function stop(){ playing=false; playBtn.textContent='▶ تشغيل'; if(audioOk) audio.pause(); }
 playBtn.onclick=()=> playing?stop():start();
-document.getElementById('restart').onclick=()=>{ seek(START); if(!playing) drawFrame(START); };
-
-// ---- recording ---------------------------------------------------------
-let recorder=null, chunks=[], recState='idle', srcNode=null, actx=null;
-function pickMime(){
-  const c=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];
-  for(const m of c){ if(window.MediaRecorder && MediaRecorder.isTypeSupported(m)) return m; }
-  return '';
-}
-function buildStream(){
-  const vs=cv.captureStream(30);
-  const stream=new MediaStream(vs.getVideoTracks());
-  // add audio only if same-origin (otherwise the element is tainted → silent)
-  if(AUDIO_LOCAL && audioOk){
-    try{
-      actx=actx||new (window.AudioContext||window.webkitAudioContext)();
-      srcNode=srcNode||actx.createMediaElementSource(audio);
-      const dest=actx.createMediaStreamDestination();
-      srcNode.connect(dest); srcNode.connect(actx.destination);
-      dest.stream.getAudioTracks().forEach(tr=>stream.addTrack(tr));
-    }catch(e){ /* fall back to video-only */ }
-  }
-  return stream;
-}
-function startRec(){
-  const mime=pickMime();
-  if(!mime){ setStatus('متصفّحك لا يدعم تسجيل الفيديو (MediaRecorder).'); return; }
-  slow=false; slowBtn.classList.remove('on'); slowBtn.textContent='½×'; if(audioOk) audio.playbackRate=1;
-  dl.style.display='none';
-  seek(START); drawFrame(START);
-  const stream=buildStream();
-  chunks=[]; recorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:4500000});
-  recorder.ondataavailable=e=>{ if(e.data.size) chunks.push(e.data); };
-  recorder.onstop=()=>{
-    const blob=new Blob(chunks,{type:'video/webm'});
-    if(dl.href) URL.revokeObjectURL(dl.href);
-    dl.href=URL.createObjectURL(blob); dl.style.display='inline-block';
-    const kb=Math.round(blob.size/1024);
-    setStatus('تمّ التسجيل ('+ar(kb)+'KB)'+(AUDIO_LOCAL?' بالصوت.':' — صورة فقط.')+' اضغط «احفظ الفيديو».');
-    recState='idle'; recBtn.textContent='⏺ تسجيل فيديو'; recBtn.classList.remove('on');
-  };
-  recorder.start(200);
-  recState='on'; recBtn.textContent='⏹ إيقاف التسجيل'; recBtn.classList.add('on');
-  setStatus('يسجّل… سيتوقّف تلقائيًا في نهاية البيت ٥٥.');
-  start();
-}
-function stopRec(){ if(recorder && recorder.state!=='inactive'){ recorder.stop(); } if(playing) stop(); }
-recBtn.onclick=()=> recState==='on' ? stopRec() : startRec();
-
-// ---- calibration -------------------------------------------------------
-const cStart=document.getElementById('cStart'), cPer=document.getElementById('cPer');
-const capBtn=document.getElementById('capBtn'), capOut=document.getElementById('capOut');
-cStart.value=START; cPer.value=PER;
-cStart.oninput=()=>{ START=+cStart.value||DEF_START; localStorage.setItem('film_start',START);
-  buildFlashes(); if(!playing) drawFrame(now()); };
-cPer.oninput  =()=>{ PER=Math.max(1,+cPer.value||DEF_PER); localStorage.setItem('film_per',PER);
-  buildFlashes(); if(!playing) drawFrame(now()); };
-document.getElementById('calReset').onclick=()=>{
-  START=DEF_START; PER=DEF_PER; cStart.value=START; cPer.value=PER;
-  localStorage.removeItem('film_start'); localStorage.removeItem('film_per');
-  localStorage.removeItem('film_times'); localStorage.removeItem('film_times2');
-  localStorage.removeItem('film_times3'); capOut.style.display='none';
-  buildFlashes(); seek(START); drawFrame(START);
-  setStatus('أُعيد الضبط إلى التقدير (بداية '+ar(DEF_START)+' ث).');
-};
-
-// ---- timing capture: play once, tap Space at each code -----------------
-function startCapture(){
-  capturing=true; capIdx=0; capRec=CODESEQ.map(()=>({t0:null,t1:null}));
-  capOut.style.display='none';
-  seek(Math.max(START-1,0)); start();
-  capBtn.textContent='⏹ إنهاء الالتقاط';
-  setStatus('الالتقاط: اضغط «المسافة» عند كل رمز — بما فيها الأوّل. التالي: '+CODESEQ[0].sym);
-}
-function captureTap(){
-  if(!capturing) return;
-  const t=now();
-  capRec[capIdx].t0=+t.toFixed(2);
-  if(capIdx>0 && capRec[capIdx-1].t1==null) capRec[capIdx-1].t1=+t.toFixed(2);
-  capIdx++;
-  if(capIdx>=CODESEQ.length){ capRec[capIdx-1].t1=+(t+FLASHDUR).toFixed(2); finishCapture(); }
-  else setStatus('التالي: '+CODESEQ[capIdx].sym+'  ('+ar(capIdx)+'/'+ar(CODESEQ.length)+')');
-}
-function finishCapture(){
-  capturing=false; capBtn.textContent='⏱ التقاط التوقيت'; stop();
-  capRec.forEach(r=>{ if(r.t1==null && r.t0!=null) r.t1=+(r.t0+FLASHDUR).toFixed(2); });
-  const done=capRec.some(r=>r.t0!=null);
-  if(done){
-    localStorage.setItem('film_times3',JSON.stringify(capRec)); buildFlashes();
-    capOut.style.display='block';
-    capOut.value=JSON.stringify(capRec.map((r,i)=>({sym:CODESEQ[i].sym,t0:r.t0,t1:r.t1})));
-    setStatus('تمّ حفظ التوقيت ✓ — يمكنك تشغيل الفيلم، أو نسخ النص أدناه وإرساله لي لأثبّته نهائيًّا.');
-  } else setStatus('أُلغِي الالتقاط.');
-  drawFrame(now());
-}
-capBtn.onclick=()=> capturing?finishCapture():startCapture();
 document.addEventListener('keydown',e=>{
-  if(e.code==='Space'){ if(capturing){ e.preventDefault(); captureTap(); }
-    else if(e.target===document.body){ e.preventDefault(); playing?stop():start(); } }
+  if(e.code==='Space' && e.target===document.body){ e.preventDefault(); playing?stop():start(); }
 });
-
-// ---- half speed --------------------------------------------------------
-let slow=false;
-const slowBtn=document.getElementById('slow');
-function applyRate(){ if(audioOk) audio.playbackRate=slow?0.5:1; }
-slowBtn.onclick=()=>{ slow=!slow; applyRate();
-  slowBtn.classList.toggle('on',slow); slowBtn.textContent=slow?'1× عادي':'½×'; };
-
-// ---- precision editor --------------------------------------------------
-const editor=document.getElementById('editor'), edRows=document.getElementById('edRows');
-const edBtn=document.getElementById('edBtn'), edNow=document.getElementById('edNow');
-const edCopy=document.getElementById('edCopy'), edOut=document.getElementById('edOut');
-function buildEditor(){
-  edRows.innerHTML='';
-  CODESEQ.forEach((c,i)=>{
-    const row=document.createElement('div'); row.className='erow'; row.dataset.i=i;
-    row.innerHTML='<span class="sym" style="color:'+GC[c.sym]+'">'+c.sym+'</span>'+
-      '<span class="t"></span>'+
-      '<button data-d="-0.1">−</button><button data-d="0.1">+</button>'+
-      '<button class="here">الآن</button>'+
-      '<span style="color:#56706b;font-size:.78rem">بيت '+ar(c.n)+'</span>';
-    edRows.appendChild(row);
-    row.querySelectorAll('button[data-d]').forEach(b=>b.onclick=()=>setT0(i,T0[i]+(+b.dataset.d)));
-    row.querySelector('.here').onclick=()=>setT0(i, now());
-  });
-  refreshEditor();
-}
-function refreshEditor(){
-  if(!edRows || editor.style.display==='none') return;
-  const t=now();
-  edRows.querySelectorAll('.erow').forEach(row=>{ const i=+row.dataset.i;
-    row.querySelector('.t').textContent=T0[i].toFixed(2);
-    row.classList.toggle('act', t>=FLASHES[i].t0 && t<FLASHES[i].t1); });
-}
-edBtn.onclick=()=>{ const show=editor.style.display==='none';
-  editor.style.display=show?'block':'none'; edBtn.classList.toggle('on',show);
-  if(show){ buildEditor(); } };
-edCopy.onclick=()=>{ edOut.style.display='block';
-  edOut.value=JSON.stringify(T0.map((t,i)=>({sym:CODESEQ[i].sym,t0:+t.toFixed(2)})));
-  edOut.select(); try{document.execCommand('copy');}catch(e){}
-  setStatus('نُسِخ التوقيت — ألصِقه في المحادثة لأثبّته نهائيًّا.'); };
 
 // ---- boot --------------------------------------------------------------
 (async function(){
