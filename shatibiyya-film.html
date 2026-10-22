@@ -62,6 +62,7 @@
 
   <div class="bar">
     <button id="play" class="primary">▶ تشغيل</button>
+    <button id="restart">⟲ من البداية</button>
   </div>
 </div>
 
@@ -77,7 +78,7 @@ const LOCAL_AUDIO  = './shatibiyya-matn.mp3';   // optional same-origin copy →
 
 // ---- timing ------------------------------------------------------------
 // The رموز section follows a long introduction; the verses begin ~7:40.
-const DEF_START = 460;    // seconds: open at the start of بيت 49 (no tail of بيت 48)
+const DEF_START = 459;    // seconds: open ~a second earlier, into the start of بيت 49
 const DEF_PER   = 8;      // rough seconds/bayt — only seeds the estimate before calibration
 const FLASHDUR  = 2.2;    // fallback flash length for the estimate
 const N = 7;              // abyat 49..55
@@ -445,6 +446,7 @@ function start(){
 }
 function stop(){ playing=false; playBtn.textContent='▶ تشغيل'; if(audioOk) audio.pause(); }
 playBtn.onclick=()=> playing?stop():start();
+document.getElementById('restart').onclick=()=>{ seek(START); start(); };   // back to verse 49, playing
 document.addEventListener('keydown',e=>{
   if(e.code==='Space' && e.target===document.body){ e.preventDefault(); playing?stop():start(); }
 });
