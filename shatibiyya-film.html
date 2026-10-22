@@ -87,7 +87,7 @@ const LOCAL_AUDIO  = './shatibiyya-matn.mp3';   // optional same-origin copy →
 
 // ---- timing ------------------------------------------------------------
 // The رموز section follows a long introduction; the verses begin ~7:40.
-const DEF_START = 458.8;  // seconds: open a touch into the start of بيت 49
+const DEF_START = 458.6;  // seconds: open a touch into the start of بيت 49
 const DEF_PER   = 8;      // rough seconds/bayt — only seeds the estimate before calibration
 const FLASHDUR  = 2.2;    // fallback flash length for the estimate
 const N = 7;              // abyat 49..55
@@ -160,21 +160,27 @@ const CODESEQ=[
 // (ث wasn't tapped), so taps were shifted back onto their true code; ث alone is
 // estimated (~4s before خ, from the within-bayt cadence) and حرمي pulled ~1s
 // earlier per the noted late tap. Aligned index-for-index with CODESEQ.
+// Aligned to the cue words: each flash fires at the start of the phrase that
+// introduces it ("وستتهم"→خ، "وكوف وشام"→ذ، …), anchored to the reliable
+// phrase-start taps (صحاب/حرمي/حصن) with the ~4.4s/hemistich meter between them.
+// Cue-word onsets, verified against the actual recitation: the breath after each
+// cue phrase (measured from the audio energy) sits just after these, confirming
+// the ~4.4s hemistich meter. Each flash fires when its cue word is recited.
 const TIMES=[
-  {t0:460.00,t1:464.38},  // ث    (flashes almost immediately after the audio starts)
-  {t0:464.38,t1:472.65},  // خ
-  {t0:472.65,t1:477.10},  // ذ
-  {t0:477.10,t1:481.33},  // ظ
-  {t0:481.33,t1:485.72},  // غ
-  {t0:485.72,t1:490.18},  // ش
-  {t0:490.18,t1:494.30},  // صحبة
-  {t0:494.30,t1:497.26},  // صحاب
-  {t0:497.26,t1:500.06},  // عمّ
-  {t0:499.40,t1:504.49},  // سما   (a touch earlier)
-  {t0:504.49,t1:508.05},  // حقّ
-  {t0:508.05,t1:511.70},  // نفر
-  {t0:511.70,t1:516.28},  // حرمي  (−1s per the late tap)
-  {t0:516.28,t1:520.00},  // حصن
+  {t0:460.00,t1:464.20},  // ث    (first flash, right after the audio starts)
+  {t0:464.20,t1:472.45},  // خ    وستتهم
+  {t0:472.45,t1:476.95},  // ذ    وكوف وشام
+  {t0:476.95,t1:481.15},  // ظ    وكوف مع المكي
+  {t0:481.15,t1:485.55},  // غ    وكوف وبصر
+  {t0:485.55,t1:490.00},  // ش    وذو النقط
+  {t0:490.00,t1:494.15},  // صحبة وقل فيهما
+  {t0:494.15,t1:497.10},  // صحاب صحاب
+  {t0:497.10,t1:499.25},  // عمّ  عمّ
+  {t0:499.25,t1:504.30},  // سما  سما
+  {t0:504.30,t1:507.90},  // حقّ  وحق
+  {t0:507.90,t1:511.55},  // نفر  وقل فيهما
+  {t0:511.55,t1:516.10},  // حرمي وحرمي
+  {t0:516.10,t1:519.90},  // حصن  وحصن
 ];
 let FLASHES=[], BAYTWIN={}, T0=[];
 const LAST_HOLD=3.7;      // حصن's length (no "next code" to bound it)
@@ -222,15 +228,15 @@ function hull(ps){
   const up=[]; for(let i=pts.length-1;i>=0;i--){ const p=pts[i]; while(up.length>=2&&cr(up[up.length-2],up[up.length-1],p)<=0)up.pop(); up.push(p); }
   lo.pop(); up.pop(); return lo.concat(up);
 }
+// Closed rounded curve via quadratics through edge-midpoints (control = vertex).
+// Unlike Catmull-Rom this never overshoots a vertex, so curves can't spike out
+// where they meet — the outline stays smoothly inside the hull.
 function smooth(pts){
-  const n=pts.length; if(n<2) return '';
-  let d='M '+pts[0].x.toFixed(1)+' '+pts[0].y.toFixed(1)+' ';
-  for(let i=0;i<n;i++){
-    const p0=pts[(i-1+n)%n],p1=pts[i],p2=pts[(i+1)%n],p3=pts[(i+2)%n];
-    const c1x=p1.x+(p2.x-p0.x)/6,c1y=p1.y+(p2.y-p0.y)/6;
-    const c2x=p2.x-(p3.x-p1.x)/6,c2y=p2.y-(p3.y-p1.y)/6;
-    d+='C '+c1x.toFixed(1)+' '+c1y.toFixed(1)+' '+c2x.toFixed(1)+' '+c2y.toFixed(1)+' '+p2.x.toFixed(1)+' '+p2.y.toFixed(1)+' ';
-  }
+  const n=pts.length; if(n<3) return '';
+  const mx=i=>(pts[i].x+pts[(i+1)%n].x)/2, my=i=>(pts[i].y+pts[(i+1)%n].y)/2;
+  let d='M '+mx(n-1).toFixed(1)+' '+my(n-1).toFixed(1)+' ';
+  for(let i=0;i<n;i++)
+    d+='Q '+pts[i].x.toFixed(1)+' '+pts[i].y.toFixed(1)+' '+mx(i).toFixed(1)+' '+my(i).toFixed(1)+' ';
   return d+'Z';
 }
 function blob(members,pad){
@@ -444,7 +450,7 @@ audio.addEventListener('error',()=>{ audioOk=false;
 // Drawing (and the stop point) run VIS_LEAD seconds ahead to compensate both.
 const VIS_LEAD = 1.0;
 let playing=false, vt=START, finished=false, last=0, wantTime=START;
-const CONTENT_END = () => lastT() - 0.2;          // stop just after حصن, before the next verse bleeds in
+const CONTENT_END = () => lastT() - 0.4;          // stop just after حصن, before the next verse bleeds in
 const drawTime = () => vt + VIS_LEAD;
 function seek(t){ vt=t; wantTime=t; finished=false; try{ audio.currentTime=t; }catch(e){} }
 // a seek issued before the audio's metadata loads is dropped — re-apply it so the
