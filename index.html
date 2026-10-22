@@ -252,9 +252,32 @@
   .game{ display:none; width:100%; max-width:460px; }
   .game iframe{ display:block; width:100%; height:calc(100dvh - 170px); min-height:420px;
     max-height:760px; border:none; border-radius:16px; background:transparent; color-scheme:dark; }
-  body.is-game .game{ display:block; }
-  body.is-game .card, body.is-game .rosette,
-  body.is-game .about, body.is-game .updated{ display:none; }
+  body.is-game #gameWrap, body.is-study #studyWrap, body.is-film #filmWrap{ display:block; }
+  body.is-game .card, body.is-game .rosette, body.is-game .about, body.is-game .updated,
+  body.is-study .card, body.is-study .rosette, body.is-study .about, body.is-study .updated,
+  body.is-film .card, body.is-film .rosette, body.is-film .about, body.is-film .updated{ display:none; }
+
+  /* الشاطبية dropdown */
+  .mode-dd{ position:relative; overflow:visible; }
+  .mode-dd .sub::after{ content:''; }
+  .submenu{
+    position:absolute; top:calc(100% + 7px); left:50%; transform:translateX(-50%);
+    min-width:140px; background:#13212b; border:1px solid var(--line);
+    border-radius:13px; padding:5px; z-index:60; display:none;
+    box-shadow:0 12px 34px rgba(0,0,0,0.5);
+  }
+  .mode-dd.open .submenu{ display:block; }
+  .submenu-item{
+    display:flex; flex-direction:column; align-items:center; gap:1px;
+    width:100%; border:none; background:none; cursor:pointer;
+    padding:8px 10px; border-radius:9px;
+    font-family:'Work Sans', sans-serif; transition:background 0.2s, color 0.2s;
+  }
+  .submenu-item .s-ar{ font-family:'Amiri', serif; font-size:15px; color:var(--parchment); line-height:1.2; }
+  .submenu-item .s-en{ font-size:8px; text-transform:uppercase; letter-spacing:0.3px; color:var(--muted); margin-top:1px; }
+  .submenu-item:hover{ background:rgba(255,255,255,0.05); }
+  .submenu-item.active{ background:rgba(201,162,75,0.14); }
+  .submenu-item.active .s-ar{ color:var(--gold); }
 
   .review-queue{ display:none; margin-top:20px; }
   body.is-review #reviewQueue{ display:block; }
@@ -795,12 +818,16 @@
     <button class="mode-tab" id="modeFriday" role="tab" aria-selected="false">
       <span class="ar">الكهف</span><span class="sub">Friday</span>
     </button>
-    <button class="mode-tab" id="modeMatn" role="tab" aria-selected="false">
-      <span class="ar">الشاطبية</span><span class="sub">matn</span>
-    </button>
-    <button class="mode-tab" id="modeGame" role="tab" aria-selected="false">
-      <span class="ar">رموز</span><span class="sub">quiz</span>
-    </button>
+    <div class="mode-tab mode-dd" id="modeShatibiyya" role="tab" aria-selected="false"
+         tabindex="0" aria-haspopup="true" aria-expanded="false">
+      <span class="ar">الشاطبية</span><span class="sub" id="shatSubLabel">matn ▾</span>
+      <div class="submenu" id="shatMenu" role="menu" aria-label="الشاطبية">
+        <button class="submenu-item" data-sub="matn"  role="menuitem"><span class="s-ar">استماع</span><span class="s-en">listen</span></button>
+        <button class="submenu-item" data-sub="game"  role="menuitem"><span class="s-ar">اختبار</span><span class="s-en">test</span></button>
+        <button class="submenu-item" data-sub="study" role="menuitem"><span class="s-ar">دراسة</span><span class="s-en">study</span></button>
+        <button class="submenu-item" data-sub="film"  role="menuitem"><span class="s-ar">فيلم</span><span class="s-en">movie</span></button>
+      </div>
+    </div>
     <button class="mode-tab" id="modeDua" role="tab" aria-selected="false">
       <span class="ar">دعاء</span><span class="sub">random</span>
     </button>
@@ -947,6 +974,8 @@
     </div>
 
     <div class="game" id="gameWrap"><iframe id="gameFrame" title="رموز الشاطبية" loading="lazy"></iframe></div>
+    <div class="game" id="studyWrap"><iframe id="studyFrame" title="خريطة القرّاء وتتبّع الحفظ" loading="lazy"></iframe></div>
+    <div class="game" id="filmWrap"><iframe id="filmFrame" title="فيلم الرموز" loading="lazy"></iframe></div>
   </div>
 
   <details class="about">
@@ -1136,6 +1165,8 @@
   let unitMode = false;
   let duaMode = false;
   let gameMode = false;
+  let studyMode = false;
+  let filmMode = false;
   let shatAyat = null;       // { n: {sadr, ajz} }, fetched at runtime
   let shatTitles = null;     // { firstBaytOfChapter: title }
   let shatTextPromise = null;
@@ -1310,7 +1341,6 @@
     reviewQueue: document.getElementById('reviewQueue'),
     reviewQueueList: document.getElementById('reviewQueueList'),
     reciterSelect: document.getElementById('reciterSelect'),
-    modeMatn: document.getElementById('modeMatn'),
     matnSetup: document.getElementById('matnSetup'),
     matnFrom: document.getElementById('matnFrom'),
     matnTo: document.getElementById('matnTo'),
@@ -1340,8 +1370,12 @@
     unitTrack: document.getElementById('unitTrack'),
     unitThumb: document.getElementById('unitThumb'),
     modeDua: document.getElementById('modeDua'),
-    modeGame: document.getElementById('modeGame'),
+    modeShatibiyya: document.getElementById('modeShatibiyya'),
+    shatMenu: document.getElementById('shatMenu'),
+    shatSubLabel: document.getElementById('shatSubLabel'),
     gameFrame: document.getElementById('gameFrame'),
+    studyFrame: document.getElementById('studyFrame'),
+    filmFrame: document.getElementById('filmFrame'),
     duaCard: document.getElementById('duaCard'),
     duaScroll: document.getElementById('duaScroll'),
     duaText: document.getElementById('duaText'),
@@ -3014,14 +3048,23 @@
     unitKind = unitMode ? name : null;
     duaMode = name === 'dua';
     gameMode = name === 'game';
+    studyMode = name === 'study';
+    filmMode = name === 'film';
+    const shatChild = (name === 'matn' || name === 'game' || name === 'study' || name === 'film');
     [['radio', els.modeRadio], ['friday', els.modeFriday], ['review', els.modeReview],
-     ['matn', els.modeMatn], ['werd', els.modeWerd], ['tajweed', els.modeTajweed],
-     ['dua', els.modeDua], ['game', els.modeGame]]
+     ['werd', els.modeWerd], ['tajweed', els.modeTajweed], ['dua', els.modeDua]]
       .forEach(([n, el]) => {
         const on = n === name;
         el.classList.toggle('active', on);
         el.setAttribute('aria-selected', String(on));
       });
+    // الشاطبية parent reflects whichever of its four children is active
+    els.modeShatibiyya.classList.toggle('active', shatChild);
+    els.modeShatibiyya.setAttribute('aria-selected', String(shatChild));
+    const subLabels = { matn:'استماع', game:'اختبار', study:'دراسة', film:'فيلم' };
+    els.shatSubLabel.textContent = (shatChild ? subLabels[name] : 'matn') + ' ▾';
+    els.shatMenu.querySelectorAll('.submenu-item').forEach(it =>
+      it.classList.toggle('active', it.dataset.sub === name));
     els.brandTag.textContent = name === 'friday' ? "Friday · Surat al-Kahf"
       : name === 'review' ? "Review · by juz'"
       : name === 'matn' ? "Matn · Ash-Shāṭibiyyah"
@@ -3029,6 +3072,8 @@
       : name === 'tajweed' ? "Tajwīd · rubʿ by rubʿ"
       : name === 'dua' ? "Duʿāʾ · supplications"
       : name === 'game' ? "Rumūz · quiz"
+      : name === 'study' ? "Dirāsa · readers map"
+      : name === 'film' ? "Film · ar-rumūz"
       : "Random Qira'at Radio";
     els.reviewSetup.style.display = reviewMode ? 'block' : 'none';
     els.matnSetup.style.display = matnMode ? 'block' : 'none';
@@ -3038,7 +3083,11 @@
     document.body.classList.toggle('is-unit', unitMode);
     document.body.classList.toggle('is-dua', duaMode);
     document.body.classList.toggle('is-game', gameMode);
+    document.body.classList.toggle('is-study', studyMode);
+    document.body.classList.toggle('is-film', filmMode);
     if(gameMode && !els.gameFrame.src) els.gameFrame.src = 'shatibiyya-keys.html';   // lazy-load once
+    if(studyMode && !els.studyFrame.src) els.studyFrame.src = 'progress-pie.html';
+    if(filmMode && !els.filmFrame.src) els.filmFrame.src = 'shatibiyya-film.html';
     // Switching tabs never auto-plays; it pauses and resets to a ready state,
     // then waits for the play button (radio/friday) or Start (review).
     els.audio.pause();
@@ -3091,8 +3140,8 @@
       els.reciterName.textContent = '—';
       els.riwayahName.textContent = '—';
       prepareDua();
-    } else if(gameMode){
-      // Embedded rumūz quiz — the iframe carries its own UI, nothing to set up.
+    } else if(gameMode || studyMode || filmMode){
+      // Embedded views (quiz / readers map / film) — each iframe carries its own UI.
     } else {
       setEyebrow('PRESS PLAY', false);
       els.surahName.textContent = '—';
@@ -3105,11 +3154,28 @@
   els.modeRadio.addEventListener('click', () => setMode('radio'));
   els.modeFriday.addEventListener('click', () => setMode('friday'));
   els.modeReview.addEventListener('click', () => setMode('review'));
-  els.modeMatn.addEventListener('click', () => setMode('matn'));
   els.modeWerd.addEventListener('click', () => setMode('werd'));
   els.modeTajweed.addEventListener('click', () => setMode('tajweed'));
   els.modeDua.addEventListener('click', () => setMode('dua'));
-  els.modeGame.addEventListener('click', () => setMode('game'));
+
+  // الشاطبية dropdown: tap the tab to toggle, tap an item to switch
+  function closeShatMenu(){ els.modeShatibiyya.classList.remove('open');
+    els.modeShatibiyya.setAttribute('aria-expanded','false'); }
+  function toggleShatMenu(){ const open = !els.modeShatibiyya.classList.contains('open');
+    els.modeShatibiyya.classList.toggle('open', open);
+    els.modeShatibiyya.setAttribute('aria-expanded', String(open)); }
+  els.modeShatibiyya.addEventListener('click', e => {
+    const item = e.target.closest('.submenu-item');
+    if(item){ setMode(item.dataset.sub); closeShatMenu(); }
+    else toggleShatMenu();
+  });
+  els.modeShatibiyya.addEventListener('keydown', e => {
+    if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); toggleShatMenu(); }
+    else if(e.key === 'Escape') closeShatMenu();
+  });
+  document.addEventListener('click', e => {
+    if(!els.modeShatibiyya.contains(e.target)) closeShatMenu();
+  });
 
   // ---- Review mode ------------------------------------------------------
 
@@ -3789,7 +3855,7 @@
     // Reopen the tab the listener was last on.
     let last = null;
     try{ last = localStorage.getItem('muqri.mode'); }catch(e){}
-    if(last && last !== 'radio' && ['friday','review','matn','werd','tajweed','dua','game'].indexOf(last) !== -1){
+    if(last && last !== 'radio' && ['friday','review','matn','werd','tajweed','dua','game','study','film'].indexOf(last) !== -1){
       setMode(last);
     }
   }
