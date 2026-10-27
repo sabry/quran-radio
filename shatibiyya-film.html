@@ -87,7 +87,7 @@ const LOCAL_AUDIO  = './shatibiyya-matn.mp3';   // optional same-origin copy →
 
 // ---- timing ------------------------------------------------------------
 // The رموز section follows a long introduction; the verses begin ~7:40.
-const DEF_START = 458.6;  // seconds: open a touch into the start of بيت 49
+const DEF_START = 460.1;  // seconds: open at بيت 49, past the previous verse's tail
 const DEF_PER   = 8;      // rough seconds/bayt — only seeds the estimate before calibration
 const FLASHDUR  = 2.2;    // fallback flash length for the estimate
 const N = 7;              // abyat 49..55
@@ -167,7 +167,7 @@ const CODESEQ=[
 // cue phrase (measured from the audio energy) sits just after these, confirming
 // the ~4.4s hemistich meter. Each flash fires when its cue word is recited.
 const TIMES=[
-  {t0:460.00,t1:464.20},  // ث    (first flash, right after the audio starts)
+  {t0:460.40,t1:464.20},  // ث    (first flash, just after the trimmed start)
   {t0:464.20,t1:472.45},  // خ    وستتهم
   {t0:472.45,t1:476.95},  // ذ    وكوف وشام
   {t0:476.95,t1:481.15},  // ظ    وكوف مع المكي
@@ -175,15 +175,15 @@ const TIMES=[
   {t0:485.55,t1:490.00},  // ش    وذو النقط
   {t0:490.00,t1:494.15},  // صحبة وقل فيهما
   {t0:494.15,t1:497.10},  // صحاب صحاب
-  {t0:497.10,t1:499.25},  // عمّ  عمّ
-  {t0:499.25,t1:504.30},  // سما  سما
-  {t0:504.30,t1:507.90},  // حقّ  وحق
+  {t0:497.10,t1:499.70},  // عمّ  عمّ
+  {t0:499.70,t1:504.70},  // سما  سما  (nudged onto its word)
+  {t0:504.70,t1:507.90},  // حقّ  وحق  (nudged onto its word)
   {t0:507.90,t1:511.55},  // نفر  وقل فيهما
   {t0:511.55,t1:516.10},  // حرمي وحرمي
   {t0:516.10,t1:519.90},  // حصن  وحصن
 ];
 let FLASHES=[], BAYTWIN={}, T0=[];
-const LAST_HOLD=3.7;      // حصن's length (no "next code" to bound it)
+const LAST_HOLD=4.4;      // حصن held to the end (a hair longer so it doesn't cut)
 function buildT0(){ T0=CODESEQ.map((c,i)=>
   (TIMES[i] && TIMES[i].t0!=null) ? TIMES[i].t0 : (START + (c.n-49)*PER + c.f*PER)); }
 let VSEG=[];
