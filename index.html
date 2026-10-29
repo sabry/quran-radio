@@ -253,10 +253,13 @@
   .game iframe{ display:block; width:100%; height:calc(100dvh - 170px); min-height:420px;
     max-height:760px; border:none; border-radius:16px; background:transparent; color-scheme:dark; }
   body.is-game #gameWrap, body.is-study #studyWrap,
-  body.is-progress #progressWrap, body.is-film #filmWrap{ display:block; }
+  body.is-progress #progressWrap, body.is-film #filmWrap,
+  body.is-dstudy #dStudyWrap, body.is-dgame #dGameWrap{ display:block; }
   body.is-game .card, body.is-game .rosette, body.is-game .about, body.is-game .updated,
   body.is-study .card, body.is-study .rosette, body.is-study .about, body.is-study .updated,
   body.is-progress .card, body.is-progress .rosette, body.is-progress .about, body.is-progress .updated,
+  body.is-dstudy .card, body.is-dstudy .rosette, body.is-dstudy .about, body.is-dstudy .updated,
+  body.is-dgame .card, body.is-dgame .rosette, body.is-dgame .about, body.is-dgame .updated,
   body.is-film .card, body.is-film .rosette, body.is-film .about, body.is-film .updated{ display:none; }
 
   /* الشاطبية dropdown */
@@ -831,6 +834,15 @@
         <button class="submenu-item" data-sub="film"     role="menuitem"><span class="s-ar">فيلم</span><span class="s-en">movie</span></button>
       </div>
     </div>
+    <div class="mode-tab mode-dd" id="modeDurra" role="tab" aria-selected="false"
+         tabindex="0" aria-haspopup="true" aria-expanded="false">
+      <span class="ar">الدرة</span><span class="sub" id="durraSubLabel">listen ▾</span>
+      <div class="submenu" id="durraMenu" role="menu" aria-label="الدرة">
+        <button class="submenu-item" data-sub="dmatn"  role="menuitem"><span class="s-ar">استماع</span><span class="s-en">listen</span></button>
+        <button class="submenu-item" data-sub="dgame"  role="menuitem"><span class="s-ar">اختبار</span><span class="s-en">test</span></button>
+        <button class="submenu-item" data-sub="dstudy" role="menuitem"><span class="s-ar">دراسة</span><span class="s-en">study</span></button>
+      </div>
+    </div>
     <button class="mode-tab" id="modeDua" role="tab" aria-selected="false">
       <span class="ar">دعاء</span><span class="sub">random</span>
     </button>
@@ -980,6 +992,8 @@
     <div class="game" id="studyWrap"><iframe id="studyFrame" title="خريطة القرّاء" loading="lazy"></iframe></div>
     <div class="game" id="progressWrap"><iframe id="progressFrame" title="تتبّع الحفظ" loading="lazy"></iframe></div>
     <div class="game" id="filmWrap"><iframe id="filmFrame" title="فيلم الرموز" loading="lazy"></iframe></div>
+    <div class="game" id="dStudyWrap"><iframe id="dStudyFrame" title="قرّاء الدرة" loading="lazy"></iframe></div>
+    <div class="game" id="dGameWrap"><iframe id="dGameFrame" title="اختبار الدرة" loading="lazy"></iframe></div>
   </div>
 
   <details class="about">
@@ -1133,10 +1147,10 @@
   // is a single even division across the whole poem (uniform meter), and the
   // per-bayt seconds come from the file's actual loaded duration.
   const MATN_RECITER_AR = 'د. محمود بن حليم';
-  const SHAT_TEXT_URL = 'https://surahquran.com/Tajweed/alshatibieah.html';
+  let SHAT_TEXT_URL = 'https://surahquran.com/Tajweed/alshatibieah.html';
   let shatAudioUrls = null;    // { fileNumber: url }
   let shatAudioPromise = null;
-  const SHAT_KEY = 'muqri.matn.v2';   // v2: single-file (global) positions
+  let SHAT_KEY = 'muqri.matn.v2';   // v2: single-file (global) positions (re-pointed per active matn)
   // The matn text is fetched + parsed once through the CORS relays (slow), then
   // cached so later opens are instant. Only a *complete* parse is cached — a
   // partial fetch must never persist, or ranges in the missing part would break.
@@ -1146,8 +1160,8 @@
     for(let n = 1; n <= SHAT_TOTAL; n++){ if(!ay[n]) return false; }
     return true;
   }
-  const SHAT_TOTAL = 1173;
-  const SHAT_MAP = [
+  let SHAT_TOTAL = 1173;
+  let SHAT_MAP = [
     [2,1,94,883],[3,95,99,54],[4,100,107,81],[5,108,115,80],[6,116,131,151],
     [7,132,157,246],[8,158,167,97],[9,168,182,149],[10,183,201,185],[11,202,213,119],
     [12,214,225,118],[13,226,234,94],[14,235,254,198],[15,255,258,43],[16,259,261,32],
@@ -1382,6 +1396,11 @@
     studyFrame: document.getElementById('studyFrame'),
     progressFrame: document.getElementById('progressFrame'),
     filmFrame: document.getElementById('filmFrame'),
+    modeDurra: document.getElementById('modeDurra'),
+    durraMenu: document.getElementById('durraMenu'),
+    durraSubLabel: document.getElementById('durraSubLabel'),
+    dStudyFrame: document.getElementById('dStudyFrame'),
+    dGameFrame: document.getElementById('dGameFrame'),
     duaCard: document.getElementById('duaCard'),
     duaScroll: document.getElementById('duaScroll'),
     duaText: document.getElementById('duaText'),
@@ -2112,9 +2131,32 @@
   // bayt the same length — so an even split across the whole poem lands each
   // bayt closely. SHAT_ROW is the single whole-poem playback unit; SHAT_MAP is
   // kept only for the bab titles shown while reciting.
-  const SHAT_AUDIO_URL = 'https://files.a-alqasim.com/audio/Mutoon/MahmudHaleem/0814AsShaatibiyyah_MahmudHaleem.mp3';
-  const SHAT_ROW = [1, 1, SHAT_TOTAL, 0];   // [_, firstBayt, lastBayt, _]
-  const MATN_INTRO = 50;   // s of spoken intro before bayt 1; the even split runs over the rest
+  let SHAT_AUDIO_URL = 'https://files.a-alqasim.com/audio/Mutoon/MahmudHaleem/0814AsShaatibiyyah_MahmudHaleem.mp3';
+  let SHAT_ROW = [1, 1, SHAT_TOTAL, 0];   // [_, firstBayt, lastBayt, _]
+  let MATN_INTRO = 50;   // s of spoken intro before bayt 1; the even split runs over the rest
+
+  // --- matn registry -------------------------------------------------------
+  // The player reads the SHAT_* globals above; a second matn (the Durra) just
+  // re-points them. The Shāṭibiyyah values above are captured as the default,
+  // and setActiveMatn() swaps the live globals when the user opens either matn.
+  const SHAT_ORIG = { id:'shatibiyya', total:1173, intro:50, audioUrl:SHAT_AUDIO_URL,
+    textUrl:SHAT_TEXT_URL, map:SHAT_MAP, key:'muqri.matn.v2', loader:'surahquran',
+    labelAr:'الشاطبية', labelEn:'Ash-Shāṭibiyyah', riwayah:'Ash-Shāṭibiyyah  ·  الشاطبية' };
+  const MATN_DEFS = {
+    shatibiyya: SHAT_ORIG,
+    durra: { id:'durra', total:241, intro:40,   /* lead-in before bayt 1 (even-split; fine-tune by ear) */
+      audioUrl:'https://files.a-alqasim.com/audio/Mutoon/MahmudHaleem/0820AdDurrahAlMudeeah_MahmudHaleem.mp3',
+      textData:'./durra-abyat.json', map:null, key:'muqri.matn.durra.v1', loader:'localjson',
+      labelAr:'الدرة', labelEn:'Ad-Durra al-Muḍiyya', riwayah:'Ad-Durra al-Muḍiyya  ·  الدرة المضية' }
+  };
+  let AM = MATN_DEFS.shatibiyya;   // active matn descriptor
+  function setActiveMatn(id){
+    const d = MATN_DEFS[id] || MATN_DEFS.shatibiyya; AM = d;
+    SHAT_TOTAL = d.total; MATN_INTRO = d.intro; SHAT_AUDIO_URL = d.audioUrl;
+    SHAT_TEXT_URL = d.textUrl || null; SHAT_ROW = [1, 1, d.total, 0]; SHAT_KEY = d.key;
+    SHAT_MAP = d.map || [];     // the Durra's bab map is rebuilt from its JSON on load
+    shatAyat = null; shatTitles = null; shatTextPromise = null;
+  }
   function loadShatAudio(){
     if(!shatAudioPromise){
       shatAudioUrls = { ready: true };   // single deterministic URL; nothing to fetch
@@ -2122,7 +2164,26 @@
     }
     return shatAudioPromise;
   }
-  function loadMatn(){ return Promise.all([loadShatText(), loadShatAudio()]); }
+  // Durra text comes from a local JSON (already byte-exact, numbered 1..241);
+  // it fills the same shatAyat/shatTitles the reader uses, and rebuilds SHAT_MAP
+  // (bab labels) from the file's abwab list.
+  function loadDurraText(){
+    if(shatTextPromise) return shatTextPromise;
+    shatTextPromise = (async () => {
+      const r = await fetch(AM.textData);
+      if(!r || !r.ok) throw new Error('durra text unavailable');
+      const d = await r.json();
+      const ay = {}, titles = {};
+      (d.abyat || []).forEach(a => { ay[a.n] = { sadr: a.sadr, ajz: a.ajz }; });
+      (d.abwab || []).forEach(b => { titles[b.from] = b.name; });
+      SHAT_MAP = (d.abwab || []).map(b => [b.from, b.from, b.to, 0]);
+      shatAyat = ay; shatTitles = titles;
+      return ay;
+    })().catch(e => { shatTextPromise = null; throw e; });
+    return shatTextPromise;
+  }
+  function loadMatnText(){ return (AM && AM.loader === 'localjson') ? loadDurraText() : loadShatText(); }
+  function loadMatn(){ return Promise.all([loadMatnText(), loadShatAudio()]); }
   function shatAudioUrl(){ return SHAT_AUDIO_URL; }
   // The bab title for a given bayt (from SHAT_MAP), shown as the recitation moves.
   function matnBabTitle(bayt){
@@ -2186,11 +2247,11 @@
     matnOffset = 0; matnShownLine = from;
     matnScrollToPos(from);
     matnSetSlider(from);
-    els.eyebrow.textContent = 'الشاطبية';
+    els.eyebrow.textContent = AM.labelAr;
     els.eyebrow.classList.remove('loading');
     els.surahName.textContent = shatRowTitle(row);
     els.reciterName.textContent = MATN_RECITER_AR;
-    els.riwayahName.textContent = "Ash-Shāṭibiyyah  ·  الشاطبية";
+    els.riwayahName.textContent = AM.riwayah;
     els.audio.src = cur.track.audioUrl;
     els.audio.play().then(() => updateMatnMedia()).catch(() => {});
     return true;
@@ -2403,7 +2464,7 @@
 
   function updateMatnMedia(){
     if(!cur || !cur.matn) return;
-    setMediaMeta(matnBabTitle(cur.curBayt || 1), MATN_RECITER_AR, 'الشاطبية · Ash-Shāṭibiyyah');
+    setMediaMeta(matnBabTitle(cur.curBayt || 1), MATN_RECITER_AR, AM.labelAr + ' · ' + AM.labelEn);
   }
 
   // Queue of the abyat in the chosen range, tappable to jump.
@@ -3043,13 +3104,14 @@
   function setMode(name){
     if(name === mode) return;
     if(mode === 'review' && cur && cur.review) saveReviewProgress(true);
-    if(mode === 'matn' && cur && cur.matn) saveMatnProgress(true);
+    if((mode === 'matn' || mode === 'dmatn') && cur && cur.matn) saveMatnProgress(true);
     if((mode === 'werd' || mode === 'tajweed') && cur && cur.unit) saveUnitProgress(true);
     mode = name;
     try{ localStorage.setItem('muqri.mode', name); }catch(e){}   // remember the tab across refreshes
     fridayMode = name === 'friday';
     reviewMode = name === 'review';
-    matnMode = name === 'matn';
+    matnMode = name === 'matn' || name === 'dmatn';
+    if(matnMode) setActiveMatn(name === 'dmatn' ? 'durra' : 'shatibiyya');
     unitMode = name === 'werd' || name === 'tajweed';
     unitKind = unitMode ? name : null;
     duaMode = name === 'dua';
@@ -3057,7 +3119,9 @@
     studyMode = name === 'study';
     progressMode = name === 'progress';
     filmMode = name === 'film';
+    const dstudyMode = name === 'dstudy', dgameMode = name === 'dgame';
     const shatChild = (name === 'matn' || name === 'game' || name === 'study' || name === 'progress' || name === 'film');
+    const durraChild = (name === 'dmatn' || name === 'dgame' || name === 'dstudy');
     [['radio', els.modeRadio], ['friday', els.modeFriday], ['review', els.modeReview],
      ['werd', els.modeWerd], ['tajweed', els.modeTajweed], ['dua', els.modeDua]]
       .forEach(([n, el]) => {
@@ -3068,13 +3132,22 @@
     // الشاطبية parent reflects whichever of its four children is active
     els.modeShatibiyya.classList.toggle('active', shatChild);
     els.modeShatibiyya.setAttribute('aria-selected', String(shatChild));
+    els.modeDurra.classList.toggle('active', durraChild);
+    els.modeDurra.setAttribute('aria-selected', String(durraChild));
     const subLabels = { matn:'استماع', game:'اختبار', study:'دراسة', progress:'تقدّم', film:'فيلم' };
     els.shatSubLabel.textContent = (shatChild ? subLabels[name] : 'matn') + ' ▾';
+    const dSubLabels = { dmatn:'استماع', dgame:'اختبار', dstudy:'دراسة' };
+    els.durraSubLabel.textContent = (durraChild ? dSubLabels[name] : 'listen') + ' ▾';
     els.shatMenu.querySelectorAll('.submenu-item').forEach(it =>
+      it.classList.toggle('active', it.dataset.sub === name));
+    els.durraMenu.querySelectorAll('.submenu-item').forEach(it =>
       it.classList.toggle('active', it.dataset.sub === name));
     els.brandTag.textContent = name === 'friday' ? "Friday · Surat al-Kahf"
       : name === 'review' ? "Review · by juz'"
       : name === 'matn' ? "Matn · Ash-Shāṭibiyyah"
+      : name === 'dmatn' ? "Matn · Ad-Durra al-Muḍiyya"
+      : name === 'dstudy' ? "Qurrāʾ · Ad-Durra"
+      : name === 'dgame' ? "Ikhtibār · Ad-Durra"
       : name === 'werd' ? "Werd · juz' by juz'"
       : name === 'tajweed' ? "Tajwīd · rubʿ by rubʿ"
       : name === 'dua' ? "Duʿāʾ · supplications"
@@ -3094,10 +3167,14 @@
     document.body.classList.toggle('is-study', studyMode);
     document.body.classList.toggle('is-progress', progressMode);
     document.body.classList.toggle('is-film', filmMode);
+    document.body.classList.toggle('is-dstudy', dstudyMode);
+    document.body.classList.toggle('is-dgame', dgameMode);
     if(gameMode && !els.gameFrame.src) els.gameFrame.src = 'shatibiyya-keys.html';   // lazy-load once
     if(studyMode && !els.studyFrame.src) els.studyFrame.src = 'progress-pie.html#map';
     if(progressMode && !els.progressFrame.src) els.progressFrame.src = 'progress-pie.html#progress';
     if(filmMode && !els.filmFrame.src) els.filmFrame.src = 'shatibiyya-film.html';
+    if(dstudyMode && !els.dStudyFrame.src) els.dStudyFrame.src = 'durra-study.html';
+    if(dgameMode && !els.dGameFrame.src) els.dGameFrame.src = 'durra-keys.html';
     // Switching tabs never auto-plays; it pauses and resets to a ready state,
     // then waits for the play button (radio/friday) or Start (review).
     els.audio.pause();
@@ -3125,7 +3202,7 @@
       els.surahName.textContent = '—';
       els.surahMeta.innerHTML = '&nbsp;';
       els.reciterName.textContent = MATN_RECITER_AR;
-      els.riwayahName.textContent = "Ash-Shāṭibiyyah  ·  الشاطبية";
+      els.riwayahName.textContent = AM.riwayah;
       setEyebrow('LOADING MATN…', true);
       matnRenderQueue();
       loadMatn()
@@ -3150,7 +3227,7 @@
       els.reciterName.textContent = '—';
       els.riwayahName.textContent = '—';
       prepareDua();
-    } else if(gameMode || studyMode || progressMode || filmMode){
+    } else if(gameMode || studyMode || progressMode || filmMode || dstudyMode || dgameMode){
       // Embedded views (quiz / map / progress / film) — each iframe carries its own UI.
     } else {
       setEyebrow('PRESS PLAY', false);
@@ -3173,7 +3250,8 @@
     els.modeShatibiyya.setAttribute('aria-expanded','false'); }
   function toggleShatMenu(){ const open = !els.modeShatibiyya.classList.contains('open');
     els.modeShatibiyya.classList.toggle('open', open);
-    els.modeShatibiyya.setAttribute('aria-expanded', String(open)); }
+    els.modeShatibiyya.setAttribute('aria-expanded', String(open));
+    if(open) closeDurraMenu(); }
   els.modeShatibiyya.addEventListener('click', e => {
     const item = e.target.closest('.submenu-item');
     if(item){ setMode(item.dataset.sub); closeShatMenu(); }
@@ -3185,6 +3263,25 @@
   });
   document.addEventListener('click', e => {
     if(!els.modeShatibiyya.contains(e.target)) closeShatMenu();
+  });
+  // الدرة dropdown: same behaviour as الشاطبية
+  function closeDurraMenu(){ els.modeDurra.classList.remove('open');
+    els.modeDurra.setAttribute('aria-expanded','false'); }
+  function toggleDurraMenu(){ const open = !els.modeDurra.classList.contains('open');
+    els.modeDurra.classList.toggle('open', open);
+    els.modeDurra.setAttribute('aria-expanded', String(open));
+    if(open) closeShatMenu(); }
+  els.modeDurra.addEventListener('click', e => {
+    const item = e.target.closest('.submenu-item');
+    if(item){ setMode(item.dataset.sub); closeDurraMenu(); }
+    else toggleDurraMenu();
+  });
+  els.modeDurra.addEventListener('keydown', e => {
+    if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); toggleDurraMenu(); }
+    else if(e.key === 'Escape') closeDurraMenu();
+  });
+  document.addEventListener('click', e => {
+    if(!els.modeDurra.contains(e.target)) closeDurraMenu();
   });
   // Belt-and-suspenders for the split views: besides the #map / #progress hash,
   // set the view class directly on each embedded page once it loads.

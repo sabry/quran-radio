@@ -3,15 +3,18 @@
    (fonts + the King Fahd Complex text data on jsDelivr). Audio streams and the
    CORS relays are deliberately left untouched so playback and the proxy
    fallback behave exactly as before. Bump CACHE to invalidate on deploy. */
-const CACHE = 'muqri-v125';
-const RUNTIME = 'muqri-v125-runtime';
+const CACHE = 'muqri-v126';
+const RUNTIME = 'muqri-v126-runtime';
 const SHELL = [
   './',
   './index.html',
   './shatibiyya-keys.html',
   './progress-pie.html',
   './shatibiyya-film.html',
+  './durra-study.html',
+  './durra-keys.html',
   './shatibiyya-abyat.json',
+  './durra-abyat.json',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
