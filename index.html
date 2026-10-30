@@ -364,6 +364,11 @@
     margin-top:2px;
   }
   body:not(.is-matn) .matn-hint{ display:none; }
+  .matn-sync{ color:var(--gold); margin-right:6px; white-space:nowrap; }
+  .matn-sync button{ background:rgba(201,162,75,0.12); border:1px solid var(--gold-soft); color:var(--gold);
+    border-radius:6px; width:22px; height:20px; line-height:1; font-size:14px; cursor:pointer; margin:0 3px; padding:0; vertical-align:middle; }
+  .matn-sync button:active{ background:rgba(201,162,75,0.28); }
+  #matnSyncV{ font-variant-numeric:tabular-nums; min-width:36px; display:inline-block; text-align:center; }
   .unit-hint{
     display:none;
     align-items:center;
@@ -927,7 +932,12 @@
         <div class="matn-scroll" id="matnScroll"></div>
         <div class="matn-track" id="matnTrack"><div class="matn-thumb" id="matnThumb"></div></div>
       </div>
-      <div class="matn-hint">Drag the bar to scroll · the text also follows the recitation</div>
+      <div class="matn-hint">
+        اسحب النص للتصفّح، وانقُر بيتًا ليعود للتلاوة
+        <span class="matn-sync" title="اضبط تزامن النص مع الصوت">· تزامن
+          <button type="button" id="matnSyncE" aria-label="أبكر">‹</button><span id="matnSyncV">0.0s</span><button type="button" id="matnSyncL" aria-label="أأخر">›</button>
+        </span>
+      </div>
 
       <div class="matn-reader" id="unitReader">
         <div class="matn-scroll" id="unitScroll"></div>
@@ -1370,6 +1380,9 @@
     matnStart: document.getElementById('matnStart'),
     matnResume: document.getElementById('matnResume'),
     matnResumeBtn: document.getElementById('matnResumeBtn'),
+    matnSyncE: document.getElementById('matnSyncE'),
+    matnSyncL: document.getElementById('matnSyncL'),
+    matnSyncV: document.getElementById('matnSyncV'),
     matnQueueList: document.getElementById('matnQueueList'),
     matnReader: document.getElementById('matnReader'),
     matnScroll: document.getElementById('matnScroll'),
@@ -2315,7 +2328,10 @@
     if(!isFinite(d) || d <= 0) return;
     // Prefer measured per-bayt times (recitation pauses → real boundaries); the
     // even split is kept as both a fallback and the pacing figure.
-    cur.times = (AM && AM._times && AM._times.bayt && AM._times.bayt.length === cur.count) ? AM._times.bayt : null;
+    cur.times = (AM && AM._times && AM._times.bayt && AM._times.bayt.length === cur.count) ? AM._times.bayt.slice() : null;
+    cur.userShift = matnUserShift(AM && AM.id);
+    if(cur.times && cur.userShift) cur.times = cur.times.map(t => t + cur.userShift);
+    if(els.matnSyncV) els.matnSyncV.textContent = (cur.userShift > 0 ? '+' : '') + (cur.userShift || 0).toFixed(1) + 's';
     cur.perBayt = Math.max(0.1, (d - MATN_INTRO) / cur.count);
     cur.t0 = cur.times ? cur.times[0] : MATN_INTRO;
     cur.matnEnd = cur.times ? Math.min(d, cur.times[cur.times.length - 1] + cur.perBayt) : d;
@@ -3798,6 +3814,22 @@
     matnOffset = (+ln.dataset.bayt) - cur.audioBayt;
     matnScrollNow();
   });
+  // Per-matn sync nudge: shift the measured times a touch earlier/later and
+  // save it, so each matn's alignment can be dialled in by ear once.
+  function matnUserShift(id){ try{ return parseFloat(localStorage.getItem('muqri.matn.ushift.' + id)) || 0; }catch(e){ return 0; } }
+  function nudgeMatn(delta){
+    if(!AM) return;
+    const v = Math.round((matnUserShift(AM.id) + delta) * 10) / 10;
+    try{ localStorage.setItem('muqri.matn.ushift.' + AM.id, v); }catch(e){}
+    if(els.matnSyncV) els.matnSyncV.textContent = (v > 0 ? '+' : '') + v.toFixed(1) + 's';
+    if(cur && cur.matn && AM._times && AM._times.bayt){
+      cur.times = AM._times.bayt.map(t => t + v);
+      cur.userShift = v;
+      matnScrollNow();
+    }
+  }
+  els.matnSyncE.addEventListener('click', () => nudgeMatn(-0.4));
+  els.matnSyncL.addEventListener('click', () => nudgeMatn(+0.4));
   window.addEventListener('resize', () => { if(cur && cur.matn) matnScrollNow(); });
   window.addEventListener('pagehide', () => {
     if(cur && cur.review) saveReviewProgress(true);
