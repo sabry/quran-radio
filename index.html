@@ -2140,13 +2140,13 @@
   // re-points them. The Shāṭibiyyah values above are captured as the default,
   // and setActiveMatn() swaps the live globals when the user opens either matn.
   const SHAT_ORIG = { id:'shatibiyya', total:1173, intro:50, audioUrl:SHAT_AUDIO_URL,
-    textUrl:SHAT_TEXT_URL, map:SHAT_MAP, key:'muqri.matn.v2', loader:'surahquran',
+    textUrl:SHAT_TEXT_URL, map:SHAT_MAP, key:'muqri.matn.v2', loader:'surahquran', timesData:'./shatibiyya-times.json',
     labelAr:'الشاطبية', labelEn:'Ash-Shāṭibiyyah', riwayah:'Ash-Shāṭibiyyah  ·  الشاطبية' };
   const MATN_DEFS = {
     shatibiyya: SHAT_ORIG,
     durra: { id:'durra', total:241, intro:40,   /* lead-in before bayt 1 (even-split; fine-tune by ear) */
       audioUrl:'https://files.a-alqasim.com/audio/Mutoon/MahmudHaleem/0820AdDurrahAlMudeeah_MahmudHaleem.mp3',
-      textData:'./durra-abyat.json', map:null, key:'muqri.matn.durra.v1', loader:'localjson',
+      textData:'./durra-abyat.json', timesData:'./durra-times.json', map:null, key:'muqri.matn.durra.v1', loader:'localjson',
       labelAr:'الدرة', labelEn:'Ad-Durra al-Muḍiyya', riwayah:'Ad-Durra al-Muḍiyya  ·  الدرة المضية' }
   };
   let AM = MATN_DEFS.shatibiyya;   // active matn descriptor
@@ -2183,7 +2183,15 @@
     return shatTextPromise;
   }
   function loadMatnText(){ return (AM && AM.loader === 'localjson') ? loadDurraText() : loadShatText(); }
-  function loadMatn(){ return Promise.all([loadMatnText(), loadShatAudio()]); }
+  // Measured per-bayt start times (from <matn>-times.json), derived from the
+  // recitation's own mid/end-of-bayt pauses. Cached on the matn descriptor.
+  function loadMatnTimes(){
+    if(!AM || !AM.timesData) return Promise.resolve(null);
+    if(AM._times) return Promise.resolve(AM._times);
+    return fetch(AM.timesData).then(r => r.ok ? r.json() : null)
+      .then(j => { AM._times = j; return j; }).catch(() => null);
+  }
+  function loadMatn(){ return Promise.all([loadMatnText(), loadShatAudio(), loadMatnTimes()]); }
   function shatAudioUrl(){ return SHAT_AUDIO_URL; }
   // The bab title for a given bayt (from SHAT_MAP), shown as the recitation moves.
   function matnBabTitle(bayt){
@@ -2271,22 +2279,48 @@
   // roaming is just seeking within the one file, handled by next/prevBayt.
   function matnGotoMap(){ /* no-op: single-file model */ }
 
+  // Start time of bayt number b (1..count). With measured times it's a direct
+  // lookup; otherwise the even-split fallback.
+  function baytStartTime(b){
+    if(cur && cur.times){
+      const T = cur.times, N = T.length;
+      if(b <= cur.row[1]) return T[0];
+      if(b > N) return cur.matnEnd || (T[N-1] + (T[N-1] - T[N-2]));
+      return T[b-1];
+    }
+    return (cur.t0 || 0) + (b - cur.row[1]) * cur.perBayt;
+  }
+  // Continuous (fractional) bayt position at audio time t — the inverse mapping.
+  function fracBaytAt(t){
+    if(cur && cur.times){
+      const T = cur.times, N = T.length, endT = cur.matnEnd || T[N-1];
+      if(t <= T[0]) return cur.row[1];
+      if(t >= endT) return N + 0.999;
+      let lo = 0, hi = N - 1, i = 0;
+      while(lo <= hi){ const m = (lo + hi) >> 1; if(T[m] <= t){ i = m; lo = m + 1; } else hi = m - 1; }
+      const a = T[i], b = (i + 1 < N) ? T[i+1] : endT;
+      const frac = (b > a) ? (t - a) / (b - a) : 0;
+      return (i + 1) + Math.max(0, Math.min(0.999, frac));
+    }
+    return cur.row[1] + (t - (cur.t0 || 0)) / cur.perBayt;
+  }
+
   function applyMatnTrim(){
     if(!cur || !cur.matn) return;
     const d = els.audio.duration;
     if(!isFinite(d) || d <= 0) return;
-    // Bayt row[1] begins at t0 (after the spoken intro); split the rest evenly.
-    cur.t0 = MATN_INTRO;
-    cur.perBayt = Math.max(0.1, (d - cur.t0) / cur.count);
-    const bt = b => cur.t0 + (b - cur.row[1]) * cur.perBayt;   // start time of bayt b
-    // Even division underestimates the last bayt's end slightly, which was
-    // clipping the final word. Give it a tail so it finishes (capped at the end).
+    // Prefer measured per-bayt times (recitation pauses → real boundaries); the
+    // even split is kept as both a fallback and the pacing figure.
+    cur.times = (AM && AM._times && AM._times.bayt && AM._times.bayt.length === cur.count) ? AM._times.bayt : null;
+    cur.perBayt = Math.max(0.1, (d - MATN_INTRO) / cur.count);
+    cur.t0 = cur.times ? cur.times[0] : MATN_INTRO;
+    cur.matnEnd = cur.times ? Math.min(d, cur.times[cur.times.length - 1] + cur.perBayt) : d;
     const tail = Math.max(2.5, cur.perBayt * 0.5);
-    cur.playEnd = Math.min(d, bt(cur.rowTo + 1) + tail);
-    if(cur.seekLast) cur.playStart = bt(cur.rowTo);
-    else if(cur.seekBayt) cur.playStart = bt(Math.min(cur.rowTo, Math.max(cur.rowFrom, cur.seekBayt)));
+    cur.playEnd = Math.min(d, baytStartTime(cur.rowTo + 1) + tail);
+    if(cur.seekLast) cur.playStart = baytStartTime(cur.rowTo);
+    else if(cur.seekBayt) cur.playStart = baytStartTime(Math.min(cur.rowTo, Math.max(cur.rowFrom, cur.seekBayt)));
     else if(cur.seekTime != null) cur.playStart = cur.seekTime;
-    else cur.playStart = bt(cur.rowFrom);
+    else cur.playStart = baytStartTime(cur.rowFrom);
     if(!cur.trimApplied){
       cur.trimApplied = true;
       if(cur.playStart > 0.3 && Math.abs(els.audio.currentTime - cur.playStart) > 1) els.audio.currentTime = cur.playStart;
@@ -2297,8 +2331,8 @@
   }
 
   function baytAtTime(t){
-    if(!cur || !cur.matn || !cur.perBayt) return cur ? cur.rowFrom : 1;
-    const b = cur.row[1] + Math.floor((t - (cur.t0 || 0)) / cur.perBayt);
+    if(!cur || !cur.matn) return cur ? cur.rowFrom : 1;
+    const b = Math.floor(fracBaytAt(t) + 0.001);
     return Math.min(cur.row[2], Math.max(cur.row[1], b));
   }
 
@@ -2344,7 +2378,7 @@
   function matnScrollNow(){
     if(!cur || !cur.matn || !cur.perBayt || !matnState || matnDragging) return;
     const t0 = cur.t0 || 0;
-    const audioBayt = cur.row[1] + (els.audio.currentTime - t0) / cur.perBayt;
+    const audioBayt = fracBaytAt(els.audio.currentTime);
     cur.audioBayt = audioBayt;
     cur.curBayt = Math.min(cur.row[2], Math.max(cur.row[1], Math.floor(audioBayt + 0.001)));
     // Show the bab that the current bayt falls in.
@@ -2354,7 +2388,7 @@
     // to zero near the range's end so the last bayt is reached, not skipped.
     let delay = SCROLL_DELAY;
     if(!cur.roam && isFinite(cur.playEnd)) delay = Math.min(delay, Math.max(0, cur.playEnd - els.audio.currentTime));
-    const scrollBayt = cur.row[1] + Math.max(0, els.audio.currentTime - t0 - delay) / cur.perBayt;
+    const scrollBayt = fracBaytAt(Math.max(t0, els.audio.currentTime - delay));
     const textBayt = Math.max(matnState.from, Math.min(matnState.to, scrollBayt + matnOffset));
     matnShownLine = Math.floor(textBayt + 0.001);
     matnScrollToPos(textBayt);
@@ -2408,7 +2442,7 @@
   function nextBayt(){
     if(!cur || !cur.matn || !cur.perBayt) return;
     const d = els.audio.duration;
-    const target = (cur.t0 || 0) + (cur.curBayt - cur.row[1] + 1) * cur.perBayt + 0.05;
+    const target = baytStartTime(cur.curBayt + 1) + 0.05;
     if(isFinite(d) && target >= d - 0.1) return;   // already at the poem's end
     els.audio.currentTime = target;
     matnCheckRoam();
@@ -2416,9 +2450,9 @@
   }
   function prevBayt(){
     if(!cur || !cur.matn || !cur.perBayt) return;
-    const startOfCur = (cur.t0 || 0) + (cur.curBayt - cur.row[1]) * cur.perBayt;
+    const startOfCur = baytStartTime(cur.curBayt);
     if(els.audio.currentTime > startOfCur + 2.5){ els.audio.currentTime = startOfCur; }
-    else { els.audio.currentTime = Math.max(cur.t0 || 0, startOfCur - cur.perBayt + 0.05); }
+    else { els.audio.currentTime = Math.max(cur.t0 || 0, baytStartTime(cur.curBayt - 1)); }
     matnCheckRoam();
     if(els.audio.paused) els.audio.play().catch(() => {});
   }
@@ -2493,7 +2527,7 @@
     if(!cur || !cur.matn || !cur.perBayt || !matnState) return;
     n = Math.min(matnState.to, Math.max(matnState.from, n));
     // One file — just seek, don't reload. (Global bayt: row start is bayt 1.)
-    els.audio.currentTime = (cur.t0 || 0) + (n - cur.row[1]) * cur.perBayt;
+    els.audio.currentTime = baytStartTime(n);
     matnOffset = 0;
     matnCheckRoam();
     if(els.audio.paused) els.audio.play().catch(() => {});
