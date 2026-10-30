@@ -309,9 +309,13 @@
   #unitReader{ display:none; }
   .matn-scroll{
     position:absolute;
-    left:8px; right:34px; top:0;
+    left:12px; right:12px; top:0;
     will-change:transform;
+    touch-action:none;
   }
+  /* press-and-slide: the reader surface itself is the scroller now */
+  #matnReader, #unitReader{ touch-action:none; cursor:grab; }
+  #matnReader:active, #unitReader:active{ cursor:grabbing; }
   .matn-line{
     font-family:'Amiri', serif;
     direction:rtl;
@@ -339,8 +343,8 @@
     touch-action:none;
     cursor:pointer;
   }
-  body.is-matn #matnTrack{ display:block; }
-  body.is-unit #unitTrack{ display:block; }
+  /* the side scroll-bar is replaced by press-and-slide on the text */
+  #matnTrack, #unitTrack{ display:none; }
   .matn-thumb{
     position:absolute;
     left:-7px; top:0;
@@ -3754,7 +3758,40 @@
   });
   els.matnTrack.addEventListener('pointermove', e => { if(thumbDrag) matnTrackPointer(e); });
   window.addEventListener('pointerup', () => { if(thumbDrag){ thumbDrag = false; matnDragging = false; } });
+  // Press-and-slide: drag anywhere on the text to scroll it (replaces the bar).
+  // A small move threshold keeps a short tap working as "re-sync to this line".
+  let matnPress = null, matnDragEndT = 0;
+  function matnLineH(){
+    if(matnLines.length > 1) return (matnLines[matnLines.length-1].offsetTop - matnLines[0].offsetTop) / (matnLines.length - 1);
+    return matnLines.length ? matnLines[0].offsetHeight : 40;
+  }
+  els.matnReader.addEventListener('pointerdown', e => {
+    if(!matnState || !cur || !cur.matn) return;
+    const base = (cur.audioBayt != null ? cur.audioBayt + matnOffset : matnState.from);
+    matnPress = { y:e.clientY, bayt:base, moved:false, id:e.pointerId };
+  });
+  els.matnReader.addEventListener('pointermove', e => {
+    if(!matnPress) return;
+    const dy = e.clientY - matnPress.y;
+    if(!matnPress.moved){
+      if(Math.abs(dy) < 6) return;
+      matnPress.moved = true; matnDragging = true;
+      try{ els.matnReader.setPointerCapture(matnPress.id); }catch(_){}
+    }
+    const nb = Math.max(matnState.from, Math.min(matnState.to, matnPress.bayt - dy / matnLineH()));
+    matnOffset = nb - (cur.audioBayt != null ? cur.audioBayt : matnState.from);
+    matnShownLine = Math.floor(nb + 0.001);
+    matnScrollToPos(nb);
+  });
+  function matnPressEnd(){
+    if(!matnPress) return;
+    const moved = matnPress.moved; matnPress = null;
+    if(moved){ matnDragging = false; matnDragEndT = Date.now(); }
+  }
+  els.matnReader.addEventListener('pointerup', matnPressEnd);
+  els.matnReader.addEventListener('pointercancel', matnPressEnd);
   els.matnScroll.addEventListener('click', e => {
+    if(Date.now() - matnDragEndT < 350) return;   // the gesture was a slide, not a tap
     const ln = e.target.closest('.matn-line');
     if(!ln || !ln.dataset.bayt || !cur || !cur.matn || cur.audioBayt == null) return;
     // Tap the line you hear: aligns the text to it, audio untouched.
@@ -3946,7 +3983,38 @@
   });
   els.unitTrack.addEventListener('pointermove', e => { if(unitThumbDrag) unitTrackPointer(e); });
   window.addEventListener('pointerup', () => { if(unitThumbDrag){ unitThumbDrag = false; unitDragging = false; } });
+  // Press-and-slide on the werd/tajwīd reader (same behaviour as the matn).
+  let unitPress = null, unitDragEndT = 0;
+  function unitLineH(){
+    if(unitLines.length > 1) return (unitLines[unitLines.length-1].offsetTop - unitLines[0].offsetTop) / (unitLines.length - 1);
+    return unitLines.length ? unitLines[0].offsetHeight : 40;
+  }
+  els.unitReader.addEventListener('pointerdown', e => {
+    if(!cur || !cur.unit || !unitLines.length) return;
+    unitPress = { y:e.clientY, idx:unitPosFromTime(els.audio.currentTime) + unitOffset, moved:false, id:e.pointerId };
+  });
+  els.unitReader.addEventListener('pointermove', e => {
+    if(!unitPress) return;
+    const dy = e.clientY - unitPress.y;
+    if(!unitPress.moved){
+      if(Math.abs(dy) < 6) return;
+      unitPress.moved = true; unitDragging = true;
+      try{ els.unitReader.setPointerCapture(unitPress.id); }catch(_){}
+    }
+    const ni = Math.max(0, Math.min(unitLines.length - 1, unitPress.idx - dy / unitLineH()));
+    unitOffset = ni - unitPosFromTime(els.audio.currentTime);
+    unitShown = Math.round(ni);
+    unitScrollToIndex(ni);
+  });
+  function unitPressEnd(){
+    if(!unitPress) return;
+    const moved = unitPress.moved; unitPress = null;
+    if(moved){ unitDragging = false; unitDragEndT = Date.now(); }
+  }
+  els.unitReader.addEventListener('pointerup', unitPressEnd);
+  els.unitReader.addEventListener('pointercancel', unitPressEnd);
   els.unitScroll.addEventListener('click', e => {
+    if(Date.now() - unitDragEndT < 350) return;
     const ln = e.target.closest('.matn-line');
     if(!ln || !cur || !cur.unit || !unitLines.length) return;
     const i = unitLines.indexOf(ln);
